@@ -42,8 +42,8 @@ learning-path-generator/
 
 ⚙️ Setup Instructions
 1. Clone the Repository
-git clone https://github.com/pratyushPtr/Learning-Path-Backend.git
-cd Learning-Path-Backend
+git clone https://github.com/AliXperia71/Learning-Path-Generator.git
+cd Learning-Path-Generator
 
 2. Install Ollama (on the machine running the backend)
 Download and install Ollama from https://ollama.com
