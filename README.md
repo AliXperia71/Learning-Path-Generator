@@ -1,3 +1,5 @@
+# Learning-Path-Generator
+
 🧭 Learning Path Generator — Backend
 An AI-powered backend that generates personalized, structured learning roadmaps based on your goal, experience level, and available time. Built with FastAPI and local LLMs via Ollama.
 
@@ -197,4 +199,3 @@ Both models must be pulled on the server before first use: ollama pull qwen3.5:9
 Use --reload flag during development so the server auto-restarts on file changes
 All AI logic lives in services/llm_client.py — that's the core file
 Model names can be overridden via .env (PRIMARY_MODEL, SECONDARY_MODEL) without touching code
-# Learning-Path-Generator
