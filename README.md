@@ -46,7 +46,8 @@ Course_Forge/
 │   ├── main.py                 # FastAPI entry point, CORS config, DB init
 │   ├── requirements.txt         # Python dependencies
 │   ├── .env                     # Local config (create this yourself)
-│   ├── courseforge.db           # SQLite user database (auto-created, gitignored)
+│   │                            # (SQLite DB lives at ~/.course_forge/courseforge.db —
+│   │                            #  outside the repo, so re-cloning never wipes accounts)
 │   ├── models/
 │   │   └── schemas.py           # Pydantic request/response models (paths, auth, quizzes)
 │   ├── routes/
@@ -92,7 +93,7 @@ cd Course_Forge/backend
 
 #### 2. Create a virtual environment
 ```bash
-python -m venv venv
+python -m venv venv            
 source venv/bin/activate        # Mac/Linux
 venv\Scripts\activate           # Windows
 ```
@@ -271,8 +272,9 @@ Generate a personalized learning roadmap for any topic.
 **Implemented** ✅
 
 All `/generate` and `/quiz/*` endpoints require a Bearer token. Accounts live in a local SQLite
-database (`courseforge.db`, gitignored) — passwords are stored only as **bcrypt hashes** (one-way,
-unrecoverable by anyone, including developers).
+database at `~/.course_forge/courseforge.db` (outside the repo, so deleting or re-cloning the
+project never wipes your account; override with `DATABASE_PATH`) — passwords are stored only as
+**bcrypt hashes** (one-way, unrecoverable by anyone, including developers).
 
 - `POST /auth/register` — `{ "email", "password" }` → `{ access_token, token_type, email }` (password min 8 chars)
 - `POST /auth/login` — same request/response; 401 on bad credentials
