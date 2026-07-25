@@ -93,7 +93,7 @@ cd Course_Forge/backend
 
 #### 2. Create a virtual environment
 ```bash
-python -m venv venv            
+python -m venv venv
 source venv/bin/activate        # Mac/Linux
 venv\Scripts\activate           # Windows
 ```
@@ -281,6 +281,42 @@ project never wipes your account; override with `DATABASE_PATH`) — passwords a
 - `GET /auth/me` — returns the current user for a valid token
 
 Send the token on protected calls: `Authorization: Bearer <access_token>`
+
+---
+
+## 🗄️ Database location & data safety
+
+The SQLite file lives at **`~/.course_forge/courseforge.db`** — outside the repo — so deleting,
+re-cloning, or `git reset --hard`-ing the project never wipes accounts or saved paths. It's set by
+the default `DATABASE_URL` in `services/database.py`; `.env` overrides it, and `DATABASE_PATH` still
+works as the pre-SQLAlchemy alias. Both `*.db` and `.env` are gitignored, so no git operation can
+touch your data or your API keys.
+
+Two things *can* still cost you your local data, and neither is git's doing:
+
+> ### ⚠️ 1. A merge can silently flip the DB path back
+> `services/database.py` changes upstream from time to time. If a merge conflict there is resolved
+> by taking the incoming side wholesale, the default reverts to the repo-local
+> `backend/courseforge.db`. Nothing is deleted — but the app boots against a **fresh empty
+> database** and every account looks like it vanished. After any merge that touches this file:
+>
+> ```bash
+> git diff <remote>/main -- backend/services/database.py | grep -A3 DATABASE_URL
+> # the ~/.course_forge default must still be there
+> ```
+
+> ### ⚠️ 2. New columns on existing tables won't appear in your old DB
+> `init_db()` calls `metadata.create_all`, which creates **missing tables only** — it never adds a
+> column to a table that already exists. Add a `Column` to `users` or `groups` and your existing
+> local DB will raise `OperationalError: no such column` at runtime until you add it by hand
+> (`ALTER TABLE`) or start from a fresh file. Brand-new *tables* are picked up automatically.
+> There are no migrations yet (Alembic is the eventual fix).
+
+Cheap insurance before pulling backend changes:
+
+```bash
+cp ~/.course_forge/courseforge.db ~/.course_forge/courseforge.db.bak
+```
 
 ---
 
