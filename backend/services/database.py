@@ -1,4 +1,5 @@
 import os
+import shutil
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Iterator
@@ -29,15 +30,28 @@ BIG_TEXT = UnicodeText().with_variant(mssql.NVARCHAR(None), "mssql")
 # Engine — driven entirely by DATABASE_URL so the same code runs on SQLite
 # locally and Azure SQL in production.
 #
-#   Local (default):  sqlite:///<backend>/courseforge.db
+#   Local (default):  sqlite:///~/.course_forge/courseforge.db
 #   Azure SQL:        mssql+pyodbc://<user>:<pass>@<server>.database.windows.net:1433/
 #                       <db>?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no
 #
+# The local default lives in the home dir, not the repo, so deleting or
+# re-cloning the project never wipes accounts and saved paths.
 # pool_pre_ping recovers connections Azure silently drops after idle periods.
 # ---------------------------------------------------------------------------
 _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_DEFAULT_SQLITE = f"sqlite:///{os.path.join(_BACKEND_DIR, 'courseforge.db')}"
-DATABASE_URL = os.getenv("DATABASE_URL", _DEFAULT_SQLITE)
+_DATA_DIR = os.path.join(os.path.expanduser("~"), ".course_forge")
+os.makedirs(_DATA_DIR, exist_ok=True)
+_DB_FILE = os.path.join(_DATA_DIR, "courseforge.db")
+
+# One-time migration: adopt an existing repo-local DB so current data carries over
+_LEGACY_DB_PATH = os.path.join(_BACKEND_DIR, "courseforge.db")
+if not os.path.exists(_DB_FILE) and os.path.exists(_LEGACY_DB_PATH):
+    shutil.copy2(_LEGACY_DB_PATH, _DB_FILE)
+
+# DATABASE_PATH is the pre-SQLAlchemy override, kept working for existing setups;
+# DATABASE_URL wins when both are set.
+_sqlite_path = os.getenv("DATABASE_PATH", _DB_FILE)
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{_sqlite_path}")
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True, future=True)
 

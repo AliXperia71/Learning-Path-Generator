@@ -1,5 +1,38 @@
 @import "tailwindcss";
 
+/* dark: variants apply when .dark is on <html> instead of following the OS */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Semantic color tokens — light values (the original Apple grays) */
+@theme {
+  --color-surface: #F5F5F7;      /* page bg, input/pill fills */
+  --color-card: #FFFFFF;         /* cards, panels, navbar */
+  --color-ink: #1D1D1F;          /* primary text */
+  --color-ink-soft: #515154;     /* secondary text */
+  --color-muted: #86868B;        /* muted text, labels */
+  --color-faint: #A1A1A6;        /* tertiary text */
+  --color-ghost: #C7C7CC;        /* disabled/idle text */
+  --color-line: #E5E5EA;         /* borders, hover fills */
+  --color-line-strong: #D2D2D7;  /* stronger borders */
+}
+
+/* Dark values — same palette inverted (Apple dark-UI grays) */
+.dark {
+  --color-surface: #000000;
+  --color-card: #1D1D1F;
+  --color-ink: #F5F5F7;
+  --color-ink-soft: #A1A1A6;
+  --color-muted: #98989D;
+  --color-faint: #6E6E73;
+  --color-ghost: #48484A;
+  --color-line: #2C2C2E;
+  --color-line-strong: #3A3A3C;
+}
+
+/* Native form controls / scrollbars match the theme */
+:root { color-scheme: light; }
+.dark { color-scheme: dark; }
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -41,6 +74,10 @@ body {
   background-image: linear-gradient(90deg, #171717 0%, #171717 35%, #3b82f6 50%, #171717 65%, #171717 100%);
   background-size: 200% 100%;
   animation: cf-shimmer-kf 1.8s linear infinite;
+}
+/* Progress bar inverts to white in dark mode, so the sweep needs a light base */
+.dark .cf-shimmer {
+  background-image: linear-gradient(90deg, #F5F5F7 0%, #F5F5F7 35%, #3b82f6 50%, #F5F5F7 65%, #F5F5F7 100%);
 }
 
 /* Loading page: animated trailing ellipsis on the active step */

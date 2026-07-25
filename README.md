@@ -46,7 +46,8 @@ Course_Forge/
 │   ├── main.py                 # FastAPI entry point, CORS config, DB init
 │   ├── requirements.txt         # Python dependencies
 │   ├── .env                     # Local config (create this yourself)
-│   ├── courseforge.db           # SQLite user database (auto-created, gitignored)
+│   │                            # (SQLite DB lives at ~/.course_forge/courseforge.db —
+│   │                            #  outside the repo, so re-cloning never wipes accounts)
 │   ├── models/
 │   │   └── schemas.py           # Pydantic request/response models (paths, auth, quizzes)
 │   ├── routes/
@@ -271,14 +272,51 @@ Generate a personalized learning roadmap for any topic.
 **Implemented** ✅
 
 All `/generate` and `/quiz/*` endpoints require a Bearer token. Accounts live in a local SQLite
-database (`courseforge.db`, gitignored) — passwords are stored only as **bcrypt hashes** (one-way,
-unrecoverable by anyone, including developers).
+database at `~/.course_forge/courseforge.db` (outside the repo, so deleting or re-cloning the
+project never wipes your account; override with `DATABASE_PATH`) — passwords are stored only as
+**bcrypt hashes** (one-way, unrecoverable by anyone, including developers).
 
 - `POST /auth/register` — `{ "email", "password" }` → `{ access_token, token_type, email }` (password min 8 chars)
 - `POST /auth/login` — same request/response; 401 on bad credentials
 - `GET /auth/me` — returns the current user for a valid token
 
 Send the token on protected calls: `Authorization: Bearer <access_token>`
+
+---
+
+## 🗄️ Database location & data safety
+
+The SQLite file lives at **`~/.course_forge/courseforge.db`** — outside the repo — so deleting,
+re-cloning, or `git reset --hard`-ing the project never wipes accounts or saved paths. It's set by
+the default `DATABASE_URL` in `services/database.py`; `.env` overrides it, and `DATABASE_PATH` still
+works as the pre-SQLAlchemy alias. Both `*.db` and `.env` are gitignored, so no git operation can
+touch your data or your API keys.
+
+Two things *can* still cost you your local data, and neither is git's doing:
+
+> ### ⚠️ 1. A merge can silently flip the DB path back
+> `services/database.py` changes upstream from time to time. If a merge conflict there is resolved
+> by taking the incoming side wholesale, the default reverts to the repo-local
+> `backend/courseforge.db`. Nothing is deleted — but the app boots against a **fresh empty
+> database** and every account looks like it vanished. After any merge that touches this file:
+>
+> ```bash
+> git diff <remote>/main -- backend/services/database.py | grep -A3 DATABASE_URL
+> # the ~/.course_forge default must still be there
+> ```
+
+> ### ⚠️ 2. New columns on existing tables won't appear in your old DB
+> `init_db()` calls `metadata.create_all`, which creates **missing tables only** — it never adds a
+> column to a table that already exists. Add a `Column` to `users` or `groups` and your existing
+> local DB will raise `OperationalError: no such column` at runtime until you add it by hand
+> (`ALTER TABLE`) or start from a fresh file. Brand-new *tables* are picked up automatically.
+> There are no migrations yet (Alembic is the eventual fix).
+
+Cheap insurance before pulling backend changes:
+
+```bash
+cp ~/.course_forge/courseforge.db ~/.course_forge/courseforge.db.bak
+```
 
 ---
 

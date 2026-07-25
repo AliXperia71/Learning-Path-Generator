@@ -21,7 +21,9 @@ import {
   History,
   Plus,
   Trash2,
-  Users
+  Users,
+  Sun,
+  Moon
 } from 'lucide-react';
 import LoadingScreen from './components/LoadingScreen';
 import CareerReport from './components/CareerReport';
@@ -53,6 +55,24 @@ export default function App() {
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+
+  // Dark mode — stored choice wins, otherwise follow the OS preference
+  const [theme, setTheme] = useState(() =>
+    localStorage.getItem('cf_theme') ||
+    (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+  );
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
+
+  // setItem here (not in the effect) so cf_theme stays unset until the user
+  // explicitly toggles — keeps the system-preference default working
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    localStorage.setItem('cf_theme', next);
+  };
 
   // Input Form States
   const [goal, setGoal] = useState('');
@@ -323,32 +343,32 @@ export default function App() {
   // =========================================================================
   if (!authToken) {
     return (
-      <div className="bg-[#F5F5F7] text-[#1D1D1F] min-h-screen flex items-center justify-center font-sans p-4">
-        <div className="bg-white border border-[#E5E5EA] rounded-2xl p-8 w-full max-w-sm shadow-[0_4px_24px_rgba(0,0,0,0.04)] space-y-6">
+      <div className="bg-surface text-ink min-h-screen flex items-center justify-center font-sans p-4">
+        <div className="bg-card border border-line rounded-2xl p-8 w-full max-w-sm shadow-[0_4px_24px_rgba(0,0,0,0.04)] space-y-6">
           <div className="text-center space-y-2">
-            <div className="bg-neutral-900 text-white p-2.5 rounded-xl inline-flex">
+            <div className="bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 p-2.5 rounded-xl inline-flex">
               <Layers size={22} className="stroke-[2.2]" />
             </div>
             <h1 className="text-lg font-semibold tracking-tight">Course Forge</h1>
-            <p className="text-xs text-[#86868B] font-medium">
+            <p className="text-xs text-muted font-medium">
               {authMode === 'login' ? 'Sign in to access your learning paths' : 'Create an account to get started'}
             </p>
           </div>
 
           <form onSubmit={handleAuthSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-[#86868B] mb-2">EMAIL</label>
+              <label className="block text-xs font-semibold text-muted mb-2">EMAIL</label>
               <input
                 type="email"
                 value={authEmail}
                 onChange={(e) => setAuthEmail(e.target.value)}
                 required
                 placeholder="you@example.com"
-                className="w-full p-3 bg-[#F5F5F7] border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-white text-sm transition-all font-medium placeholder-[#86868B]/70"
+                className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-card text-sm transition-all font-medium placeholder-muted/70"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-[#86868B] mb-2">PASSWORD</label>
+              <label className="block text-xs font-semibold text-muted mb-2">PASSWORD</label>
               <input
                 type="password"
                 value={authPassword}
@@ -356,29 +376,29 @@ export default function App() {
                 required
                 minLength={8}
                 placeholder="Minimum 8 characters"
-                className="w-full p-3 bg-[#F5F5F7] border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-white text-sm transition-all font-medium placeholder-[#86868B]/70"
+                className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-card text-sm transition-all font-medium placeholder-muted/70"
               />
             </div>
 
             {authError && (
-              <p className="text-xs text-rose-600 font-medium bg-rose-50/60 border border-rose-500/10 p-2.5 rounded-xl">{authError}</p>
+              <p className="text-xs text-rose-600 dark:text-rose-400 font-medium bg-rose-50/60 dark:bg-rose-500/10 border border-rose-500/10 p-2.5 rounded-xl">{authError}</p>
             )}
 
             <button
               type="submit"
               disabled={authLoading}
-              className="w-full bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 text-sm"
+              className="w-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 text-sm"
             >
               <Lock size={14} /> {authLoading ? 'Please wait...' : authMode === 'login' ? 'Sign In' : 'Create Account'}
             </button>
           </form>
 
-          <p className="text-xs text-center text-[#86868B] font-medium">
+          <p className="text-xs text-center text-muted font-medium">
             {authMode === 'login' ? "Don't have an account?" : 'Already have an account?'}{' '}
             <button
               type="button"
               onClick={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setAuthError(''); }}
-              className="text-blue-600 font-semibold hover:underline cursor-pointer"
+              className="text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
             >
               {authMode === 'login' ? 'Sign up' : 'Sign in'}
             </button>
@@ -393,13 +413,13 @@ export default function App() {
   // the workspace. Every control locks while a request is in flight.
   // =========================================================================
   const parametersCard = (
-    <section className="bg-white p-6 rounded-2xl border border-[#E5E5EA] shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
-      <h2 className="text-sm font-semibold tracking-wide text-[#1D1D1F] uppercase mb-4 flex items-center gap-1.5">
+    <section className="bg-card p-6 rounded-2xl border border-line shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+      <h2 className="text-sm font-semibold tracking-wide text-ink uppercase mb-4 flex items-center gap-1.5">
         Parameters
       </h2>
       <form onSubmit={handleGeneratePath} className="space-y-5">
         <div>
-          <label className="block text-xs font-semibold text-[#86868B] mb-2">TARGET EXPERTISE</label>
+          <label className="block text-xs font-semibold text-muted mb-2">TARGET EXPERTISE</label>
           <textarea
             value={goal}
             onChange={(e) => setGoal(e.target.value)}
@@ -407,13 +427,13 @@ export default function App() {
             required
             disabled={isBusy}
             placeholder="e.g., Python backend development with FastAPI, building relational SQL databases, and setting up Docker container systems..."
-            className="w-full p-3 bg-[#F5F5F7] border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-white text-sm transition-all resize-none placeholder-[#86868B]/70 font-medium disabled:opacity-50"
+            className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-card text-sm transition-all resize-none placeholder-muted/70 font-medium disabled:opacity-50"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-[#86868B] mb-2">EXPERIENCE PROFILE</label>
-          <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#F5F5F7] rounded-xl border border-[#E5E5EA]/40">
+          <label className="block text-xs font-semibold text-muted mb-2">EXPERIENCE PROFILE</label>
+          <div className="grid grid-cols-3 gap-1.5 p-1 bg-surface rounded-xl border border-line/40">
             {['beginner', 'intermediate', 'advanced'].map((lvl) => (
               <button
                 key={lvl}
@@ -422,8 +442,8 @@ export default function App() {
                 disabled={isBusy}
                 className={`text-xs py-2 rounded-lg font-medium capitalize transition-all cursor-pointer disabled:opacity-50 ${
                   experienceLevel === lvl
-                    ? 'bg-white text-neutral-900 shadow-xs border border-[#E5E5EA]'
-                    : 'text-[#86868B] hover:text-[#1D1D1F]'
+                    ? 'bg-card text-ink shadow-xs border border-line'
+                    : 'text-muted hover:text-ink'
                 }`}
               >
                 {lvl}
@@ -437,8 +457,8 @@ export default function App() {
             {/* =========================================================================
                 CHANGED: UI label and slider constraints updated to manage Daily Commitment
                 ========================================================================= */}
-            <label className="block text-xs font-semibold text-[#86868B]">DAILY TIME COMMITMENT</label>
-            <span className="text-xs font-bold text-blue-600">{hoursPerDay} hrs/day</span>
+            <label className="block text-xs font-semibold text-muted">DAILY TIME COMMITMENT</label>
+            <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{hoursPerDay} hrs/day</span>
           </div>
           <input
             type="range"
@@ -447,14 +467,14 @@ export default function App() {
             value={hoursPerDay}
             disabled={isBusy}
             onChange={(e) => setHoursPerDay(parseInt(e.target.value))}
-            className="w-full h-1 bg-[#E5E5EA] rounded-lg appearance-none cursor-pointer accent-blue-600 disabled:opacity-50"
+            className="w-full h-1 bg-line rounded-lg appearance-none cursor-pointer accent-blue-600 disabled:opacity-50"
           />
         </div>
 
         <button
           type="submit"
           disabled={isBusy}
-          className="w-full bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 rounded-xl transition-all shadow-md shadow-neutral-900/10 cursor-pointer flex items-center justify-center gap-2 text-sm"
+          className="w-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 rounded-xl transition-all shadow-md shadow-neutral-900/10 cursor-pointer flex items-center justify-center gap-2 text-sm"
         >
           <Sparkles size={16} /> {isBusy ? 'Generating...' : 'Generate Roadmap'}
         </button>
@@ -464,15 +484,15 @@ export default function App() {
 
   // NEW: Career Boost upload card — lives on the prompt page under Parameters
   const careerBoostCard = (
-    <section className="bg-white p-6 rounded-2xl border border-[#E5E5EA] shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
-      <h2 className="text-sm font-semibold tracking-wide text-[#1D1D1F] uppercase mb-1 flex items-center gap-1.5">
+    <section className="bg-card p-6 rounded-2xl border border-line shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+      <h2 className="text-sm font-semibold tracking-wide text-ink uppercase mb-1 flex items-center gap-1.5">
         Career Boost
       </h2>
-      <p className="text-xs text-[#86868B] font-medium mb-4 leading-relaxed">
+      <p className="text-xs text-muted font-medium mb-4 leading-relaxed">
         Upload your resume — GPT-5 runs an ATS error scan, suggests enhancements, and matches you to live LinkedIn & Indeed job searches.
       </p>
       <div className="flex flex-col sm:flex-row gap-2.5">
-        <label className={`flex-1 flex items-center justify-center gap-2 p-3 bg-[#F5F5F7] hover:bg-[#E5E5EA]/60 border border-dashed border-[#D2D2D7] rounded-xl text-xs font-medium text-[#515154] transition-all ${isBusy ? 'opacity-50' : 'cursor-pointer'}`}>
+        <label className={`flex-1 flex items-center justify-center gap-2 p-3 bg-surface hover:bg-line/60 border border-dashed border-line-strong rounded-xl text-xs font-medium text-ink-soft transition-all ${isBusy ? 'opacity-50' : 'cursor-pointer'}`}>
           <Upload size={14} className="shrink-0" />
           <span className="truncate">{resumeFile ? resumeFile.name : 'Choose file (PDF, DOCX, TXT, or image)'}</span>
           <input
@@ -500,15 +520,15 @@ export default function App() {
   // Click a row to reopen it, trash to delete, "+ New Path" for a fresh start.
   // =========================================================================
   const sessionsCard = savedPaths.length > 0 && (
-    <section className="bg-white p-5 rounded-2xl border border-[#E5E5EA] shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+    <section className="bg-card p-5 rounded-2xl border border-line shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold tracking-wide text-[#1D1D1F] uppercase flex items-center gap-1.5">
-          <History size={14} className="text-[#86868B]" /> Your Paths
+        <h2 className="text-sm font-semibold tracking-wide text-ink uppercase flex items-center gap-1.5">
+          <History size={14} className="text-muted" /> Your Paths
         </h2>
         {viewState !== 'prompt' && (
           <button
             onClick={() => !isBusy && setViewState('prompt')}
-            className="text-[11px] font-semibold text-blue-600 hover:underline cursor-pointer inline-flex items-center gap-0.5"
+            className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer inline-flex items-center gap-0.5"
           >
             <Plus size={12} /> New Path
           </button>
@@ -521,20 +541,20 @@ export default function App() {
             onClick={() => handleLoadPath(p.id)}
             className={`group flex items-center justify-between gap-2 p-2.5 rounded-xl cursor-pointer border text-xs font-medium transition-all ${
               p.id === activePathId
-                ? 'bg-blue-50/50 border-blue-500/40 text-blue-900'
-                : 'bg-[#F5F5F7] border-transparent hover:bg-[#E5E5EA]/60 text-neutral-700'
+                ? 'bg-blue-50/50 dark:bg-blue-500/10 border-blue-500/40 text-blue-900 dark:text-blue-300'
+                : 'bg-surface border-transparent hover:bg-line/60 text-ink-soft'
             }`}
           >
             <div className="min-w-0">
               <p className="truncate font-semibold">{p.title}</p>
-              <p className="text-[10px] text-[#86868B] font-medium capitalize">
+              <p className="text-[10px] text-muted font-medium capitalize">
                 {p.experience_level} · {p.hours_per_day} hrs/day · {new Date(p.created_at + 'Z').toLocaleDateString()}
               </p>
             </div>
             <button
               onClick={(e) => handleDeletePath(e, p.id)}
               title="Delete this path"
-              className="opacity-0 group-hover:opacity-100 text-[#86868B] hover:text-rose-600 p-1 rounded-md transition-all cursor-pointer shrink-0"
+              className="opacity-0 group-hover:opacity-100 text-muted hover:text-rose-600 dark:hover:text-rose-400 p-1 rounded-md transition-all cursor-pointer shrink-0"
             >
               <Trash2 size={13} />
             </button>
@@ -545,10 +565,10 @@ export default function App() {
   );
 
   return (
-    <div className="bg-[#F5F5F7] text-[#1D1D1F] min-h-screen flex flex-col font-sans selection:bg-blue-500/20">
+    <div className="bg-surface text-ink min-h-screen flex flex-col font-sans selection:bg-blue-500/20">
 
       {/* Premium Apple-Style Glassmorphism Navbar */}
-      <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-md border-b border-[#D2D2D7]/30 px-6 py-4">
+      <header className="sticky top-0 z-50 bg-card/70 backdrop-blur-md border-b border-line-strong/30 px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           {/* Logo doubles as a home button back to the prompt page (unless a request is running) */}
           <button
@@ -556,12 +576,12 @@ export default function App() {
             title="New path / Career Boost"
             className="flex items-center gap-2.5 cursor-pointer text-left"
           >
-            <div className="bg-neutral-900 text-white p-2 rounded-xl shadow-xs">
+            <div className="bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 p-2 rounded-xl shadow-xs">
               <Layers size={20} className="stroke-[2.2]" />
             </div>
             <div>
-              <h1 className="text-base font-semibold tracking-tight text-neutral-900">Course Forge</h1>
-              <p className="text-[10px] text-[#86868B] font-medium tracking-wide uppercase">AI Systems</p>
+              <h1 className="text-base font-semibold tracking-tight text-ink">Course Forge</h1>
+              <p className="text-[10px] text-muted font-medium tracking-wide uppercase">AI Systems</p>
             </div>
           </button>
           
@@ -573,22 +593,29 @@ export default function App() {
               title="Group Skills"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border ${
                 viewState === 'groups'
-                  ? 'bg-neutral-900 text-white border-neutral-900'
-                  : 'bg-[#F5F5F7] text-[#515154] border-transparent hover:bg-[#E5E5EA]'
+                  ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 border-neutral-900 dark:border-white'
+                  : 'bg-surface text-ink-soft border-transparent hover:bg-line'
               }`}
             >
               <Users size={13} /> <span className="hidden sm:inline">Group Skills</span>
             </button>
             <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-[11px] font-semibold text-emerald-700 tracking-wide">Live Connection</span>
+              <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 tracking-wide">Live Connection</span>
             </div>
             {/* NEW: Active session identity + logout control */}
-            <span className="text-[11px] font-medium text-[#86868B] hidden sm:inline truncate max-w-[160px]">{userEmail}</span>
+            <span className="text-[11px] font-medium text-muted hidden sm:inline truncate max-w-[160px]">{userEmail}</span>
+            <button
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              className="text-muted hover:text-ink p-1.5 bg-surface hover:bg-line rounded-full transition-all cursor-pointer"
+            >
+              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
             <button
               onClick={handleLogout}
               title="Sign out"
-              className="text-[#86868B] hover:text-[#1D1D1F] p-1.5 bg-[#F5F5F7] hover:bg-[#E5E5EA] rounded-full transition-all cursor-pointer"
+              className="text-muted hover:text-ink p-1.5 bg-surface hover:bg-line rounded-full transition-all cursor-pointer"
             >
               <LogOut size={14} />
             </button>
@@ -604,8 +631,8 @@ export default function App() {
       {viewState === 'prompt' && (
         <main className="flex-1 w-full max-w-xl mx-auto px-4 py-12 space-y-5 animate-fadeIn">
           <div className="text-center space-y-1.5 mb-8">
-            <h2 className="text-2xl font-semibold tracking-tight text-[#1D1D1F]">What do you want to master?</h2>
-            <p className="text-xs text-[#86868B] font-medium">Describe your goal and Course Forge will architect a week-by-week blueprint.</p>
+            <h2 className="text-2xl font-semibold tracking-tight text-ink">What do you want to master?</h2>
+            <p className="text-xs text-muted font-medium">Describe your goal and Course Forge will architect a week-by-week blueprint.</p>
           </div>
           {parametersCard}
           {careerBoostCard}
@@ -659,14 +686,14 @@ export default function App() {
                   <button
                     onClick={() => printRoadmapPdf(roadmapData, exportMeta)}
                     title="Download as PDF"
-                    className="text-[#A1A1A6] hover:text-white p-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-all cursor-pointer"
+                    className="text-neutral-400 hover:text-white p-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-all cursor-pointer"
                   >
                     <Download size={14} />
                   </button>
                   <button
                     onClick={() => downloadRoadmapMarkdown(roadmapData, exportMeta)}
                     title="Download as Markdown"
-                    className="text-[#A1A1A6] hover:text-white p-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-all cursor-pointer"
+                    className="text-neutral-400 hover:text-white p-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-all cursor-pointer"
                   >
                     <FileText size={14} />
                   </button>
@@ -676,10 +703,10 @@ export default function App() {
                     CHANGED: Extracted backend data nodes (`title` and `calculated_total_weeks`)
                     ========================================================================= */}
                 <h2 className="text-lg font-semibold mt-1 tracking-tight pr-24">{roadmapData.title}</h2>
-                <div className="flex flex-wrap gap-5 mt-4 text-[11px] text-[#86868B] font-medium border-t border-neutral-800 pt-4">
-                  <div className="flex items-center gap-1.5 text-[#A1A1A6]"><Layers size={13} /> Level: <span className="text-white capitalize font-semibold">{experienceLevel}</span></div>
-                  <div className="flex items-center gap-1.5 text-[#A1A1A6]"><Clock size={13} /> Commitment: <span className="text-white font-semibold">{hoursPerDay} hrs/day</span></div>
-                  <div className="flex items-center gap-1.5 text-[#A1A1A6]"><Calendar size={13} /> Duration: <span className="text-white font-semibold">{roadmapData.calculated_total_weeks} Weeks</span></div>
+                <div className="flex flex-wrap gap-5 mt-4 text-[11px] text-neutral-400 font-medium border-t border-neutral-800 pt-4">
+                  <div className="flex items-center gap-1.5 text-neutral-400"><Layers size={13} /> Level: <span className="text-white capitalize font-semibold">{experienceLevel}</span></div>
+                  <div className="flex items-center gap-1.5 text-neutral-400"><Clock size={13} /> Commitment: <span className="text-white font-semibold">{hoursPerDay} hrs/day</span></div>
+                  <div className="flex items-center gap-1.5 text-neutral-400"><Calendar size={13} /> Duration: <span className="text-white font-semibold">{roadmapData.calculated_total_weeks} Weeks</span></div>
                 </div>
               </div>
 
@@ -688,23 +715,23 @@ export default function App() {
                     CHANGED: Swapped `milestones` processing node out for the calculated `weeks` payload array
                     ========================================================================= */}
                 {roadmapData.weeks?.map((wk, i) => (
-                  <div key={i} className="bg-white border border-[#E5E5EA] rounded-2xl p-5 hover:border-[#D2D2D7] hover:shadow-xs transition-all flex flex-col gap-4">
+                  <div key={i} className="bg-card border border-line rounded-2xl p-5 hover:border-line-strong hover:shadow-xs transition-all flex flex-col gap-4">
 
                     {/* Upper Core Node Metas */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="flex items-start gap-4">
-                        <div className="bg-[#F5F5F7] text-neutral-800 text-xs font-bold w-12 h-12 rounded-xl flex flex-col items-center justify-center shrink-0 border border-[#E5E5EA]/50">
-                          <span className="text-[9px] uppercase tracking-wider font-semibold text-[#86868B]">Wk</span>
+                        <div className="bg-surface text-ink text-xs font-bold w-12 h-12 rounded-xl flex flex-col items-center justify-center shrink-0 border border-line/50">
+                          <span className="text-[9px] uppercase tracking-wider font-semibold text-muted">Wk</span>
                           <span className="text-sm mt-[-2px]">{wk.week_number || (i + 1)}</span>
                         </div>
                         <div className="space-y-2">
                           {/* CHANGED: Swapped `wk.title` for `wk.focus` to capture core focus headings */}
-                          <h4 className="font-semibold text-[#1D1D1F] text-sm tracking-tight leading-snug">{wk.focus}</h4>
+                          <h4 className="font-semibold text-ink text-sm tracking-tight leading-snug">{wk.focus}</h4>
                           <div className="flex flex-wrap gap-1.5">
                             {/* CHANGED: Swapped `wk.key_topics` for `wk.topics` targeting technical modules */}
                             {wk.topics?.map((topic, tIdx) => (
-                              <span key={tIdx} className="bg-[#F5F5F7] text-[#515154] text-[11px] px-2.5 py-0.5 rounded-md font-medium border border-[#E5E5EA] inline-flex items-center gap-1">
-                                <BookOpen size={11} className="text-[#86868B]" /> {topic}
+                              <span key={tIdx} className="bg-surface text-ink-soft text-[11px] px-2.5 py-0.5 rounded-md font-medium border border-line inline-flex items-center gap-1">
+                                <BookOpen size={11} className="text-muted" /> {topic}
                               </span>
                             ))}
                           </div>
@@ -712,7 +739,7 @@ export default function App() {
                       </div>
                       <button
                         onClick={() => handleFetchQuiz(wk.focus, wk.week_number || (i + 1))}
-                        className="sm:self-center bg-[#F5F5F7] hover:bg-[#E5E5EA] text-neutral-900 text-xs font-medium px-3.5 py-2 rounded-xl transition-all cursor-pointer inline-flex items-center justify-center gap-1 border border-[#E5E5EA]"
+                        className="sm:self-center bg-surface hover:bg-line text-ink text-xs font-medium px-3.5 py-2 rounded-xl transition-all cursor-pointer inline-flex items-center justify-center gap-1 border border-line"
                       >
                         Quiz <ArrowRight size={13} />
                       </button>
@@ -723,8 +750,8 @@ export default function App() {
                         Renders hyper-targeted clickable streaming titles sourced directly from YouTube
                         ========================================================================= */}
                     {wk.live_resources && wk.live_resources.length > 0 && (
-                      <div className="border-t border-[#F5F5F7] pt-3.5 mt-0.5">
-                        <span className="text-[10px] font-bold tracking-wider text-[#86868B] uppercase block mb-2">Live Educational Context Modules</span>
+                      <div className="border-t border-surface pt-3.5 mt-0.5">
+                        <span className="text-[10px] font-bold tracking-wider text-muted uppercase block mb-2">Live Educational Context Modules</span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {wk.live_resources.map((res, rIdx) => (
                             <a
@@ -732,9 +759,9 @@ export default function App() {
                               href={res.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-2.5 p-2.5 bg-[#F5F5F7] hover:bg-[#E5E5EA]/60 border border-[#E5E5EA]/50 rounded-xl text-xs font-medium text-neutral-800 transition-all hover:text-blue-600 group"
+                              className="flex items-center gap-2.5 p-2.5 bg-surface hover:bg-line/60 border border-line/50 rounded-xl text-xs font-medium text-ink transition-all hover:text-blue-600 dark:hover:text-blue-400 group"
                             >
-                              <div className="bg-red-500/10 text-red-600 p-1.5 rounded-lg shrink-0 group-hover:bg-red-500 group-hover:text-white transition-all">
+                              <div className="bg-red-500/10 text-red-600 dark:text-red-400 p-1.5 rounded-lg shrink-0 group-hover:bg-red-500 group-hover:text-white transition-all">
                                 <Video size={13} />
                               </div>
                               <span className="truncate pr-2 font-medium">{res.title}</span>
@@ -748,9 +775,9 @@ export default function App() {
                         NEW: Practical Execution Task Checklists Area
                         ========================================================================= */}
                     {wk.practice && wk.practice.length > 0 && (
-                      <div className="bg-[#F5F5F7]/40 border border-[#E5E5EA]/40 rounded-xl p-3 text-[11px] text-[#515154] space-y-1.5">
-                        <span className="font-bold text-neutral-700 block text-[10px] tracking-wider uppercase">Weekly Sandbox Drills</span>
-                        <ul className="list-disc list-inside space-y-1 pl-1 text-[#515154]/90 font-medium">
+                      <div className="bg-surface/40 border border-line/40 rounded-xl p-3 text-[11px] text-ink-soft space-y-1.5">
+                        <span className="font-bold text-ink-soft block text-[10px] tracking-wider uppercase">Weekly Sandbox Drills</span>
+                        <ul className="list-disc list-inside space-y-1 pl-1 text-ink-soft/90 font-medium">
                           {wk.practice.map((task, pIdx) => (
                             <li key={pIdx} className="leading-relaxed">{task}</li>
                           ))}
@@ -762,8 +789,8 @@ export default function App() {
                         NEW: Comprehensive Weekly Assessment Assignment Metric Card Block
                         ========================================================================= */}
                     {wk.mini_exercise && (
-                      <p className="text-[11px] text-[#86868B] leading-relaxed bg-blue-500/5 border border-blue-500/10 p-3 rounded-xl font-medium">
-                        <span className="font-semibold text-blue-700 inline-flex items-center gap-0.5">
+                      <p className="text-[11px] text-muted leading-relaxed bg-blue-500/5 border border-blue-500/10 p-3 rounded-xl font-medium">
+                        <span className="font-semibold text-blue-700 dark:text-blue-400 inline-flex items-center gap-0.5">
                           <Flag size={11} /> Milestone Capstone Assignment:
                         </span>{' '}
                         {wk.mini_exercise}
@@ -778,17 +805,17 @@ export default function App() {
 
           {/* View Container: Assessment Mode Card */}
           {viewState === 'quiz' && activeQuiz && (
-            <div className="bg-white border border-[#E5E5EA] rounded-2xl p-6 shadow-xs space-y-6 animate-fadeIn">
+            <div className="bg-card border border-line rounded-2xl p-6 shadow-xs space-y-6 animate-fadeIn">
 
               {/* Header Context Bar */}
-              <div className="flex items-center justify-between border-b border-[#F5F5F7] pb-4">
+              <div className="flex items-center justify-between border-b border-surface pb-4">
                 <div>
-                  <span className="text-[10px] font-bold tracking-wider text-blue-600 uppercase">Week {activeQuiz.week_number} Evaluation</span>
-                  <h3 className="text-base font-semibold text-[#1D1D1F] tracking-tight">{activeQuiz.milestone}</h3>
+                  <span className="text-[10px] font-bold tracking-wider text-blue-600 dark:text-blue-400 uppercase">Week {activeQuiz.week_number} Evaluation</span>
+                  <h3 className="text-base font-semibold text-ink tracking-tight">{activeQuiz.milestone}</h3>
                 </div>
                 <button
                   onClick={() => setViewState('roadmap')}
-                  className="text-[#86868B] hover:text-[#1D1D1F] p-1.5 bg-[#F5F5F7] hover:bg-[#E5E5EA] rounded-full transition-all cursor-pointer"
+                  className="text-muted hover:text-ink p-1.5 bg-surface hover:bg-line rounded-full transition-all cursor-pointer"
                 >
                   <X size={15} />
                 </button>
@@ -798,9 +825,9 @@ export default function App() {
               {!quizResult ? (
                 <form onSubmit={handleQuizSubmit} className="space-y-6">
                   {activeQuiz.questions?.map((q) => (
-                    <div key={q.question_number} className="space-y-3 border-b border-[#F5F5F7] pb-5 last:border-0 last:pb-0">
-                      <h4 className="text-sm font-semibold text-neutral-800 flex items-start gap-1.5 leading-snug">
-                        <span className="text-neutral-400 font-mono text-xs mt-0.5">{q.question_number}.</span>
+                    <div key={q.question_number} className="space-y-3 border-b border-surface pb-5 last:border-0 last:pb-0">
+                      <h4 className="text-sm font-semibold text-ink flex items-start gap-1.5 leading-snug">
+                        <span className="text-faint font-mono text-xs mt-0.5">{q.question_number}.</span>
                         {q.question}
                       </h4>
 
@@ -811,8 +838,8 @@ export default function App() {
                               key={oIdx}
                               className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border text-xs font-medium transition-all ${
                                 quizAnswers[q.question_number] === opt
-                                  ? 'bg-blue-50/50 border-blue-500 text-blue-900'
-                                  : 'bg-[#F5F5F7] border-transparent hover:bg-[#E5E5EA]/60 text-neutral-700'
+                                  ? 'bg-blue-50/50 dark:bg-blue-500/10 border-blue-500 text-blue-900 dark:text-blue-300'
+                                  : 'bg-surface border-transparent hover:bg-line/60 text-ink-soft'
                               }`}
                             >
                               <input
@@ -835,30 +862,30 @@ export default function App() {
                           value={quizAnswers[q.question_number] || ''}
                           onChange={(e) => setQuizAnswers({ ...quizAnswers, [q.question_number]: e.target.value })}
                           placeholder="Provide your text evaluation breakdown response..."
-                          className="w-full p-3 bg-[#F5F5F7] border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-white text-xs font-medium transition-all resize-none placeholder-[#86868B]/60"
+                          className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-card text-xs font-medium transition-all resize-none placeholder-muted/60"
                         />
                       )}
                     </div>
                   ))}
-                  <button type="submit" className="bg-neutral-900 hover:bg-neutral-800 text-white font-medium text-xs px-5 py-3 rounded-xl transition-all cursor-pointer">
+                  <button type="submit" className="bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 text-white font-medium text-xs px-5 py-3 rounded-xl transition-all cursor-pointer">
                     Submit Evaluation
                   </button>
                 </form>
               ) : (
                 <div className="space-y-6">
                   {/* Grading Status Splash Header */}
-                  <div className="text-center py-4 border-b border-[#F5F5F7] space-y-2">
+                  <div className="text-center py-4 border-b border-surface space-y-2">
                     <div className="mx-auto w-12 h-12 flex items-center justify-center rounded-full">
                       {quizResult?.passed ? <CheckCircle2 size={40} className="text-emerald-500" /> : <XCircle size={40} className="text-rose-500" />}
                     </div>
-                    <h4 className="text-base font-semibold text-[#1D1D1F]">
+                    <h4 className="text-base font-semibold text-ink">
                       {quizResult?.passed ? 'Assessment Successfully Completed' : 'Review Criteria Not Met'}
                     </h4>
-                    <div className={`text-2xl font-bold ${quizResult?.passed ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {quizResult?.score} <span className="text-sm font-medium text-[#86868B]">/ {quizResult?.total || 0} Correct</span>
+                    <div className={`text-2xl font-bold ${quizResult?.passed ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                      {quizResult?.score} <span className="text-sm font-medium text-muted">/ {quizResult?.total || 0} Correct</span>
                     </div>
                     {quizResult?.overall_feedback && (
-                      <p className="text-xs text-[#515154] max-w-md mx-auto italic font-medium leading-relaxed bg-[#F5F5F7] p-3 rounded-xl border border-[#E5E5EA]/40">
+                      <p className="text-xs text-ink-soft max-w-md mx-auto italic font-medium leading-relaxed bg-surface p-3 rounded-xl border border-line/40">
                         "{quizResult.overall_feedback}"
                       </p>
                     )}
@@ -866,21 +893,21 @@ export default function App() {
 
                   {/* Individual Question AI Breakdown Cards */}
                   <div className="space-y-3">
-                    <h5 className="text-xs font-bold text-[#86868B] tracking-wider uppercase">Itemized Audit</h5>
+                    <h5 className="text-xs font-bold text-muted tracking-wider uppercase">Itemized Audit</h5>
                     {quizResult?.feedback?.map((fb, idx) => (
                       <div
                         key={idx}
                         className={`p-4 border rounded-xl text-xs font-medium ${
                           fb.correct
-                            ? 'border-emerald-500/10 bg-emerald-50/20'
-                            : 'border-rose-500/10 bg-rose-50/20'
+                            ? 'border-emerald-500/10 bg-emerald-50/20 dark:bg-emerald-500/10'
+                            : 'border-rose-500/10 bg-rose-50/20 dark:bg-rose-500/10'
                         }`}
                       >
-                        <div className={`flex items-center gap-1.5 font-semibold text-sm ${fb.correct ? 'text-emerald-800' : 'text-rose-800'}`}>
+                        <div className={`flex items-center gap-1.5 font-semibold text-sm ${fb.correct ? 'text-emerald-800 dark:text-emerald-300' : 'text-rose-800 dark:text-rose-300'}`}>
                           {fb.correct ? <CheckCircle2 size={14} /> : <XCircle size={14} />} Question {fb.question_number}
                         </div>
-                        <p className="text-[#515154] mt-2 text-xs leading-relaxed">
-                          <strong className="text-neutral-800 font-semibold">AI Feedback:</strong> {fb.explanation}
+                        <p className="text-ink-soft mt-2 text-xs leading-relaxed">
+                          <strong className="text-ink font-semibold">AI Feedback:</strong> {fb.explanation}
                         </p>
                       </div>
                     ))}
@@ -888,7 +915,7 @@ export default function App() {
 
                   <button
                     onClick={() => setViewState('roadmap')}
-                    className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-medium p-3 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    className="w-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 text-white font-medium p-3 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <RotateCcw size={14} /> Return to Roadmap Overview
                   </button>
