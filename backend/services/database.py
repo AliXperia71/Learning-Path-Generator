@@ -3,6 +3,7 @@ import shutil
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Iterator
+from urllib.parse import quote_plus
 
 from sqlalchemy import (
     Column,
@@ -27,12 +28,13 @@ from sqlalchemy.engine import Connection
 BIG_TEXT = UnicodeText().with_variant(mssql.NVARCHAR(None), "mssql")
 
 # ---------------------------------------------------------------------------
-# Engine — driven entirely by DATABASE_URL so the same code runs on SQLite
-# locally and Azure SQL in production.
-#
-#   Local (default):  sqlite:///~/.course_forge/courseforge.db
-#   Azure SQL:        mssql+pyodbc://<user>:<pass>@<server>.database.windows.net:1433/
-#                       <db>?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no
+# Engine — same code runs on SQLite locally and Azure SQL in production.
+# Resolution order:
+#   1. DATABASE_URL             — full SQLAlchemy URL, used verbatim
+#   2. DB_SERVER/DB_NAME/DB_USER/DB_PASS — composed into an Azure SQL URL
+#      (how the Container App is configured; DB_PASS comes from a secret ref)
+#   3. sqlite:///~/.course_forge/courseforge.db — local dev default
+#      (DATABASE_PATH overrides the file location)
 #
 # The local default lives in the home dir, not the repo, so deleting or
 # re-cloning the project never wipes accounts and saved paths.
@@ -48,10 +50,28 @@ _LEGACY_DB_PATH = os.path.join(_BACKEND_DIR, "courseforge.db")
 if not os.path.exists(_DB_FILE) and os.path.exists(_LEGACY_DB_PATH):
     shutil.copy2(_LEGACY_DB_PATH, _DB_FILE)
 
-# DATABASE_PATH is the pre-SQLAlchemy override, kept working for existing setups;
-# DATABASE_URL wins when both are set.
+
+def _compose_mssql_url() -> "str | None":
+    server = os.getenv("DB_SERVER")
+    name = os.getenv("DB_NAME")
+    user = os.getenv("DB_USER")
+    password = os.getenv("DB_PASS")
+    if not all((server, name, user, password)):
+        return None
+    # quote_plus so special characters in credentials can't break URL parsing
+    return (
+        f"mssql+pyodbc://{quote_plus(user)}:{quote_plus(password)}@{server}:1433/{name}"
+        "?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no"
+    )
+
+
+# DATABASE_PATH is the pre-SQLAlchemy override, kept working for existing setups
 _sqlite_path = os.getenv("DATABASE_PATH", _DB_FILE)
-DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{_sqlite_path}")
+DATABASE_URL = (
+    os.getenv("DATABASE_URL")
+    or _compose_mssql_url()
+    or f"sqlite:///{_sqlite_path}"
+)
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True, future=True)
 
@@ -119,13 +139,19 @@ groups = Table(
     Column("created_at", DateTime, default=datetime.utcnow, nullable=False),
 )
 
+# user_id FKs on the tables below deliberately have NO ondelete: SQL Server
+# rejects tables reachable by multiple cascade paths (users -> here directly
+# AND via groups.created_by), and the app never deletes users. Group deletion
+# is the real flow and keeps its CASCADE. If user deletion is ever added,
+# remove the user's memberships/progress/attempts in app code first.
+
 # One row per (group, user). hourly_commitment / calculated_weeks / roadmap_json are
 # PRIVATE fields — group_service.py must never let these leave the owning user's own request.
 group_members = Table(
     "group_members", metadata,
     Column("id", Integer, primary_key=True),
     Column("group_id", Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False),
-    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("user_id", Integer, ForeignKey("users.id"), nullable=False),
     Column("hourly_commitment", Float),
     Column("calculated_weeks", Integer),
     Column("roadmap_json", BIG_TEXT),
@@ -142,7 +168,7 @@ group_progress = Table(
     "group_progress", metadata,
     Column("id", Integer, primary_key=True),
     Column("group_id", Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False),
-    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("user_id", Integer, ForeignKey("users.id"), nullable=False),
     Column("week_number", Integer, nullable=False),
     Column("quiz_score", Integer),
     Column("quiz_total", Integer),
@@ -157,7 +183,7 @@ group_progress = Table(
 quiz_attempts = Table(
     "quiz_attempts", metadata,
     Column("id", Integer, primary_key=True),
-    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("user_id", Integer, ForeignKey("users.id"), nullable=False),
     Column("group_id", Integer, ForeignKey("groups.id", ondelete="CASCADE")),
     Column("milestone", Unicode(300), nullable=False),
     Column("week_number", Integer, nullable=False),
