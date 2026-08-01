@@ -1,5 +1,11 @@
-from dotenv import load_dotenv
 import os
+from dotenv import load_dotenv
+
+# MUST run before the service/route imports below. Modules like auth_service read
+# JWT_SECRET at import time, so loading .env any later leaves them on their
+# ephemeral fallbacks — which silently logged everyone out on each reload.
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -13,10 +19,6 @@ from routes.paths import router as paths_router
 from routes.groups import router as groups_router
 from routes.health import router as health_router
 from services.database import init_db
-
-# Load .env before anything reads the environment — don't rely on
-# services calling load_dotenv() as an import side effect
-load_dotenv()
 
 app = FastAPI(title="Course Forge Backend API", version="1.0")
 

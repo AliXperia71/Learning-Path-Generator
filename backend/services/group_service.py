@@ -292,7 +292,7 @@ def get_leaderboard(requesting_user_id: int, group_id: int) -> dict:
         rows = conn.execute(
             text(
                 """
-                SELECT gm.user_id, u.email, gm.current_week, gm.total_points, gm.status
+                SELECT gm.user_id, u.username, gm.current_week, gm.total_points, gm.status
                 FROM group_members gm
                 JOIN users u ON u.id = gm.user_id
                 WHERE gm.group_id = :g
@@ -308,9 +308,7 @@ def get_leaderboard(requesting_user_id: int, group_id: int) -> dict:
         weeks.append(row["current_week"])
         entries.append({
             "user_id": row["user_id"],
-            # Email prefix as a display name placeholder — swap for a real display_name
-            # column once your teammate's user-profile work lands.
-            "display_name": row["email"].split("@")[0],
+            "display_name": row["username"],
             "rank": i,
             "total_points": row["total_points"],
             "current_week": row["current_week"],

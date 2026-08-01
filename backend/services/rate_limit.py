@@ -24,6 +24,13 @@ from services.auth_service import JWT_ALGORITHM, JWT_SECRET
 # Limits are env-overridable so they can be tuned in prod without a code change.
 AUTH_REGISTER_LIMIT = os.getenv("RL_REGISTER", "5/hour")
 AUTH_LOGIN_LIMIT = os.getenv("RL_LOGIN", "10/minute")
+AUTH_GOOGLE_LIMIT = os.getenv("RL_GOOGLE", "20/minute")
+# Account recovery is the cheapest way to spam someone's inbox — keep it tight.
+# Shared by forgot-password and forgot-username, and the UI's single "send
+# recovery email" button calls both, so this budgets ~5 attempts per hour.
+AUTH_FORGOT_LIMIT = os.getenv("RL_FORGOT", "10/hour")
+AUTH_RESET_LIMIT = os.getenv("RL_RESET", "10/hour")
+PROFILE_UPDATE_LIMIT = os.getenv("RL_PROFILE", "20/hour")
 AI_ROADMAP_LIMIT = os.getenv("RL_ROADMAP", "15/hour")
 AI_QUIZ_GEN_LIMIT = os.getenv("RL_QUIZ_GEN", "40/hour")
 AI_QUIZ_SUBMIT_LIMIT = os.getenv("RL_QUIZ_SUBMIT", "40/hour")

@@ -15,3 +15,6 @@ SQLAlchemy>=2.0.30
 # Azure SQL / SQL Server driver (needs the system ODBC Driver 18 — see Dockerfile).
 # Not required for local SQLite dev, but harmless to install.
 pyodbc>=5.1.0
+# Verifies Google Sign-In ID tokens. Optional at runtime — the backend boots and
+# the Google button stays hidden if this or GOOGLE_CLIENT_ID is missing.
+google-auth>=2.30.0

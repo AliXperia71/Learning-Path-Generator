@@ -32,15 +32,67 @@ class PathResponse(BaseModel):
 
 # ============================== Auth ==============================
 
-class AuthRequest(BaseModel):
-    email: str = Field(min_length=5, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-    # bcrypt only reads the first 72 bytes, so cap the password there
-    password: str = Field(min_length=8, max_length=72)
+# Reused by every model that accepts one of these, so the rules stay in one place.
+EMAIL_FIELD = Field(min_length=5, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+USERNAME_FIELD = Field(min_length=3, max_length=32, pattern=r"^[a-zA-Z0-9_]+$")
+# bcrypt only reads the first 72 bytes, so cap the password there
+PASSWORD_FIELD = Field(min_length=8, max_length=72)
+
+
+class RegisterRequest(BaseModel):
+    email: str = EMAIL_FIELD
+    username: str = USERNAME_FIELD
+    password: str = PASSWORD_FIELD
+
+class LoginRequest(BaseModel):
+    # Accepts either a username or an email address — the backend resolves which
+    identifier: str = Field(min_length=3, max_length=254)
+    password: str = PASSWORD_FIELD
+
+class GoogleAuthRequest(BaseModel):
+    credential: str = Field(min_length=1, max_length=4096)  # Google ID token (JWT)
 
 class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     email: str
+    username: str
+
+
+# ---------- Account recovery ----------
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = EMAIL_FIELD
+
+class ForgotUsernameRequest(BaseModel):
+    email: str = EMAIL_FIELD
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=2048)
+    new_password: str = PASSWORD_FIELD
+
+
+# ---------- Profile ----------
+
+class UserProfileResponse(BaseModel):
+    id: int
+    email: str
+    username: str
+    bio: Optional[str] = None
+    has_password: bool
+    has_google: bool
+
+class ProfileUpdateRequest(BaseModel):
+    # All optional — the client sends only what changed, so these need their own
+    # Field() calls with default=None rather than reusing the required ones above
+    username: Optional[str] = Field(default=None, min_length=3, max_length=32, pattern=r"^[a-zA-Z0-9_]+$")
+    email: Optional[str] = Field(default=None, min_length=5, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    bio: Optional[str] = Field(default=None, max_length=500)
+
+class ChangePasswordRequest(BaseModel):
+    # Omitted by Google-only accounts that are setting a password for the first time
+    current_password: Optional[str] = Field(default=None, max_length=72)
+    new_password: str = PASSWORD_FIELD
 
 
 # ============================== Quiz ==============================

@@ -23,14 +23,31 @@ import {
   Trash2,
   Users,
   Sun,
-  Moon
+  Moon,
+  User,
+  KeyRound,
+  Mail
 } from 'lucide-react';
 import LoadingScreen from './components/LoadingScreen';
 import CareerReport from './components/CareerReport';
 import GroupSkills from './components/GroupSkills';
+import ProfileSettings from './components/ProfileSettings';
+import GoogleSignInButton from './components/GoogleSignInButton';
 import { downloadRoadmapMarkdown, printRoadmapPdf } from './utils/roadmapExport';
 
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+
+// Google sign-in is opt-in: without a client ID the button and its divider are
+// left out entirely rather than rendering something that can't work.
+const GOOGLE_ENABLED = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
+
+// FastAPI sends `detail` as a string for our own HTTPExceptions but as a list of
+// objects for validation failures — flatten both into something showable.
+function readError(data, fallback) {
+  if (typeof data?.detail === 'string') return data.detail;
+  if (Array.isArray(data?.detail) && data.detail[0]?.msg) return data.detail[0].msg;
+  return fallback;
+}
 
 // Step scripts for the animated loading page — one per long-running action
 const ROADMAP_STEPS = [
@@ -49,12 +66,28 @@ export default function App() {
   // NEW: Account session states — JWT persisted in localStorage
   // =========================================================================
   const [authToken, setAuthToken] = useState(() => localStorage.getItem('cf_token'));
-  const [userEmail, setUserEmail] = useState(() => localStorage.getItem('cf_email'));
-  const [authMode, setAuthMode] = useState('login'); // login | register
+  // Full profile {id, email, username, bio, has_password, has_google} — cached in
+  // localStorage so the navbar has a name to show before /auth/me comes back
+  const [profile, setProfile] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('cf_user')) || null;
+    } catch {
+      return null;
+    }
+  });
+  // login | register | forgot | reset
+  const [authMode, setAuthMode] = useState(() =>
+    new URLSearchParams(window.location.search).get('reset') ? 'reset' : 'login'
+  );
+  const [authIdentifier, setAuthIdentifier] = useState(''); // username OR email at login
   const [authEmail, setAuthEmail] = useState('');
+  const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState('');
+  const [authNotice, setAuthNotice] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+  // Reset token arrives in the emailed link as ?reset=<jwt>
+  const [resetToken] = useState(() => new URLSearchParams(window.location.search).get('reset') || '');
 
   // Dark mode — stored choice wins, otherwise follow the OS preference
   const [theme, setTheme] = useState(() =>
@@ -84,7 +117,7 @@ export default function App() {
   const [hoursPerDay, setHoursPerDay] = useState(2);
 
   // UI Flow Control States
-  const [viewState, setViewState] = useState('prompt'); // prompt | loading | roadmap | quiz | career
+  const [viewState, setViewState] = useState('prompt'); // prompt | loading | roadmap | quiz | career | groups | profile
   const [loadingMessage, setLoadingMessage] = useState('');
   const [loadingSteps, setLoadingSteps] = useState(ROADMAP_STEPS);
 
@@ -123,6 +156,25 @@ export default function App() {
     if (authToken) refreshSavedPaths();
   }, [authToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Pull the authoritative profile on login/reload — the token deliberately
+  // carries no email or username, so the DB is the only source of truth
+  useEffect(() => {
+    if (!authToken) return;
+    (async () => {
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${authToken}` }
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        setProfile(data);
+        localStorage.setItem('cf_user', JSON.stringify(data));
+      } catch {
+        // Fall back to the cached profile — never block the app on this
+      }
+    })();
+  }, [authToken]);
+
   // Action: Load a past session — restores the roadmap and its original parameters
   const handleLoadPath = async (pathId) => {
     if (isBusy) return;
@@ -160,24 +212,37 @@ export default function App() {
     }
   };
 
+  // Stores a freshly issued session and drops the user into the app
+  const startSession = (data) => {
+    const user = { email: data.email, username: data.username };
+    localStorage.setItem('cf_token', data.access_token);
+    localStorage.setItem('cf_user', JSON.stringify(user));
+    setAuthToken(data.access_token);
+    setProfile(user);
+    setAuthPassword('');
+    // Strip ?reset=... so a refresh doesn't drop back into the reset form
+    window.history.replaceState({}, '', window.location.pathname);
+  };
+
   // Action: Register or log in, then persist the session token
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
     setAuthLoading(true);
     try {
+      const body =
+        authMode === 'register'
+          ? { email: authEmail, username: authUsername, password: authPassword }
+          : { identifier: authIdentifier, password: authPassword };
+
       const response = await fetch(`${BACKEND_URL}/api/auth/${authMode}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: authEmail, password: authPassword })
+        body: JSON.stringify(body)
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Authentication failed. Check your details.');
-      localStorage.setItem('cf_token', data.access_token);
-      localStorage.setItem('cf_email', data.email);
-      setAuthToken(data.access_token);
-      setUserEmail(data.email);
-      setAuthPassword('');
+      if (!response.ok) throw new Error(readError(data, 'Authentication failed. Check your details.'));
+      startSession(data);
     } catch (err) {
       setAuthError(err.message);
     } finally {
@@ -185,12 +250,92 @@ export default function App() {
     }
   };
 
+  // Action: Exchange a Google ID token for a Course Forge session
+  const handleGoogleCredential = async (credential) => {
+    setAuthError('');
+    setAuthLoading(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(readError(data, 'Google sign-in failed.'));
+      startSession(data);
+    } catch (err) {
+      setAuthError(err.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // Action: Ask for a reset link / username reminder. The backend answers the
+  // same way whether or not the account exists, so the UI shows one message.
+  const handleForgotSubmit = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthNotice('');
+    setAuthLoading(true);
+    try {
+      await Promise.all(
+        ['forgot-password', 'forgot-username'].map((path) =>
+          fetch(`${BACKEND_URL}/api/auth/${path}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: authEmail })
+          })
+        )
+      );
+      setAuthNotice(
+        "If that email is registered, we've sent your username and a link to reset your password."
+      );
+    } catch {
+      setAuthError('Could not reach the server. Please try again.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // Action: Apply a new password using the token from the emailed link
+  const handleResetSubmit = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthNotice('');
+    setAuthLoading(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetToken, new_password: authPassword })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(readError(data, 'Could not reset your password.'));
+      setAuthNotice('Password updated — sign in with it below.');
+      setAuthPassword('');
+      setAuthMode('login');
+      window.history.replaceState({}, '', window.location.pathname);
+    } catch (err) {
+      setAuthError(err.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // Switch between login/register/forgot without carrying stale messages over
+  const switchAuthMode = (mode) => {
+    setAuthMode(mode);
+    setAuthError('');
+    setAuthNotice('');
+  };
+
   // Action: Clear the session and return to the login gate
   const handleLogout = () => {
     localStorage.removeItem('cf_token');
-    localStorage.removeItem('cf_email');
+    localStorage.removeItem('cf_email'); // legacy key from before profiles existed
+    localStorage.removeItem('cf_user');
     setAuthToken(null);
-    setUserEmail(null);
+    setProfile(null);
     setRoadmapData(null);
     setActiveQuiz(null);
     setCareerReport(null);
@@ -342,6 +487,19 @@ export default function App() {
   // NEW: Account gate — unauthenticated visitors see the login/register card
   // =========================================================================
   if (!authToken) {
+    const fieldClass =
+      'w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-card text-sm transition-all font-medium placeholder-muted/70';
+    const labelClass = 'block text-xs font-semibold text-muted mb-2';
+
+    // One card, four modes — the heading and form body swap, the chrome doesn't
+    const headings = {
+      login: { title: "Welcome back, let's get learning!", sub: 'Sign in to pick up where you left off.' },
+      register: { title: 'Create your account', sub: 'Start building your first learning path.' },
+      forgot: { title: 'Forgot your details?', sub: "Enter your email and we'll send your username and a reset link." },
+      reset: { title: 'Choose a new password', sub: 'Pick something you haven\'t used before.' }
+    };
+    const heading = headings[authMode];
+
     return (
       <div className="bg-surface text-ink min-h-screen flex items-center justify-center font-sans p-4">
         <div className="bg-card border border-line rounded-2xl p-8 w-full max-w-sm shadow-[0_4px_24px_rgba(0,0,0,0.04)] space-y-6">
@@ -349,60 +507,209 @@ export default function App() {
             <div className="bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 p-2.5 rounded-xl inline-flex">
               <Layers size={22} className="stroke-[2.2]" />
             </div>
-            <h1 className="text-lg font-semibold tracking-tight">Course Forge</h1>
-            <p className="text-xs text-muted font-medium">
-              {authMode === 'login' ? 'Sign in to access your learning paths' : 'Create an account to get started'}
-            </p>
+            <h1 className="text-lg font-semibold tracking-tight">{heading.title}</h1>
+            <p className="text-xs text-muted font-medium">{heading.sub}</p>
           </div>
 
-          <form onSubmit={handleAuthSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-muted mb-2">EMAIL</label>
-              <input
-                type="email"
-                value={authEmail}
-                onChange={(e) => setAuthEmail(e.target.value)}
-                required
-                placeholder="you@example.com"
-                className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-card text-sm transition-all font-medium placeholder-muted/70"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-muted mb-2">PASSWORD</label>
-              <input
-                type="password"
-                value={authPassword}
-                onChange={(e) => setAuthPassword(e.target.value)}
-                required
-                minLength={8}
-                placeholder="Minimum 8 characters"
-                className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-card text-sm transition-all font-medium placeholder-muted/70"
-              />
-            </div>
+          {/* ---------- Forgot username / password ---------- */}
+          {authMode === 'forgot' && (
+            <>
+              <form onSubmit={handleForgotSubmit} className="space-y-4">
+                <div>
+                  <label className={labelClass}>EMAIL</label>
+                  <input
+                    type="email"
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    required
+                    placeholder="you@example.com"
+                    className={fieldClass}
+                  />
+                </div>
 
-            {authError && (
-              <p className="text-xs text-rose-600 dark:text-rose-400 font-medium bg-rose-50/60 dark:bg-rose-500/10 border border-rose-500/10 p-2.5 rounded-xl">{authError}</p>
-            )}
+                {authError && (
+                  <p className="text-xs text-rose-600 dark:text-rose-400 font-medium bg-rose-50/60 dark:bg-rose-500/10 border border-rose-500/10 p-2.5 rounded-xl">{authError}</p>
+                )}
+                {authNotice && (
+                  <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium bg-emerald-50/60 dark:bg-emerald-500/10 border border-emerald-500/10 p-2.5 rounded-xl">{authNotice}</p>
+                )}
 
-            <button
-              type="submit"
-              disabled={authLoading}
-              className="w-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 text-sm"
-            >
-              <Lock size={14} /> {authLoading ? 'Please wait...' : authMode === 'login' ? 'Sign In' : 'Create Account'}
-            </button>
-          </form>
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 text-sm"
+                >
+                  <Mail size={14} /> {authLoading ? 'Sending...' : 'Send recovery email'}
+                </button>
+              </form>
 
-          <p className="text-xs text-center text-muted font-medium">
-            {authMode === 'login' ? "Don't have an account?" : 'Already have an account?'}{' '}
-            <button
-              type="button"
-              onClick={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setAuthError(''); }}
-              className="text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
-            >
-              {authMode === 'login' ? 'Sign up' : 'Sign in'}
-            </button>
-          </p>
+              <p className="text-xs text-center text-muted font-medium">
+                Remembered it?{' '}
+                <button
+                  type="button"
+                  onClick={() => switchAuthMode('login')}
+                  className="text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
+                >
+                  Back to sign in
+                </button>
+              </p>
+            </>
+          )}
+
+          {/* ---------- Set a new password from the emailed link ---------- */}
+          {authMode === 'reset' && (
+            <>
+              <form onSubmit={handleResetSubmit} className="space-y-4">
+                <div>
+                  <label className={labelClass}>NEW PASSWORD</label>
+                  <input
+                    type="password"
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    placeholder="Minimum 8 characters"
+                    className={fieldClass}
+                  />
+                </div>
+
+                {authError && (
+                  <p className="text-xs text-rose-600 dark:text-rose-400 font-medium bg-rose-50/60 dark:bg-rose-500/10 border border-rose-500/10 p-2.5 rounded-xl">{authError}</p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 text-sm"
+                >
+                  <KeyRound size={14} /> {authLoading ? 'Saving...' : 'Set new password'}
+                </button>
+              </form>
+
+              <p className="text-xs text-center text-muted font-medium">
+                <button
+                  type="button"
+                  onClick={() => switchAuthMode('login')}
+                  className="text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
+                >
+                  Back to sign in
+                </button>
+              </p>
+            </>
+          )}
+
+          {/* ---------- Sign in / Create account ---------- */}
+          {(authMode === 'login' || authMode === 'register') && (
+            <>
+              <form onSubmit={handleAuthSubmit} className="space-y-4">
+                {authMode === 'login' ? (
+                  <div>
+                    <label className={labelClass}>USERNAME OR EMAIL</label>
+                    <input
+                      type="text"
+                      value={authIdentifier}
+                      onChange={(e) => setAuthIdentifier(e.target.value)}
+                      required
+                      autoComplete="username"
+                      placeholder="yourname or you@example.com"
+                      className={fieldClass}
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className={labelClass}>EMAIL</label>
+                      <input
+                        type="email"
+                        value={authEmail}
+                        onChange={(e) => setAuthEmail(e.target.value)}
+                        required
+                        placeholder="you@example.com"
+                        className={fieldClass}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>USERNAME</label>
+                      <input
+                        type="text"
+                        value={authUsername}
+                        onChange={(e) => setAuthUsername(e.target.value)}
+                        required
+                        minLength={3}
+                        maxLength={32}
+                        pattern="[a-zA-Z0-9_]+"
+                        title="Letters, numbers and underscores only"
+                        placeholder="yourname"
+                        className={fieldClass}
+                      />
+                    </div>
+                  </>
+                )}
+
+                <div>
+                  <label className={labelClass}>PASSWORD</label>
+                  <input
+                    type="password"
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+                    placeholder="Minimum 8 characters"
+                    className={fieldClass}
+                  />
+                </div>
+
+                {authError && (
+                  <p className="text-xs text-rose-600 dark:text-rose-400 font-medium bg-rose-50/60 dark:bg-rose-500/10 border border-rose-500/10 p-2.5 rounded-xl">{authError}</p>
+                )}
+                {authNotice && (
+                  <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium bg-emerald-50/60 dark:bg-emerald-500/10 border border-emerald-500/10 p-2.5 rounded-xl">{authNotice}</p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 text-sm"
+                >
+                  <Lock size={14} /> {authLoading ? 'Please wait...' : authMode === 'login' ? 'Sign In' : 'Create Account'}
+                </button>
+
+                {authMode === 'login' && (
+                  <button
+                    type="button"
+                    onClick={() => switchAuthMode('forgot')}
+                    className="w-full text-xs text-muted hover:text-ink font-medium cursor-pointer"
+                  >
+                    Forgot username or password?
+                  </button>
+                )}
+              </form>
+
+              {/* Renders nothing at all unless VITE_GOOGLE_CLIENT_ID is configured */}
+              {GOOGLE_ENABLED && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <span className="h-px flex-1 bg-line" />
+                    <span className="text-[10px] font-semibold text-faint uppercase tracking-wide">or</span>
+                    <span className="h-px flex-1 bg-line" />
+                  </div>
+                  <GoogleSignInButton onCredential={handleGoogleCredential} theme={theme} />
+                </div>
+              )}
+
+              <p className="text-xs text-center text-muted font-medium">
+                {authMode === 'login' ? "Don't have an account?" : 'Already have an account?'}{' '}
+                <button
+                  type="button"
+                  onClick={() => switchAuthMode(authMode === 'login' ? 'register' : 'login')}
+                  className="text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
+                >
+                  {authMode === 'login' ? 'Sign up' : 'Sign in'}
+                </button>
+              </p>
+            </>
+          )}
         </div>
       </div>
     );
@@ -599,12 +906,19 @@ export default function App() {
             >
               <Users size={13} /> <span className="hidden sm:inline">Group Skills</span>
             </button>
-            <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 tracking-wide">Live Connection</span>
-            </div>
-            {/* NEW: Active session identity + logout control */}
-            <span className="text-[11px] font-medium text-muted hidden sm:inline truncate max-w-[160px]">{userEmail}</span>
+            {/* Active session identity — doubles as the entry point to profile settings */}
+            <button
+              onClick={() => !isBusy && setViewState('profile')}
+              title="Profile settings"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border max-w-[180px] ${
+                viewState === 'profile'
+                  ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 border-neutral-900 dark:border-white'
+                  : 'bg-surface text-ink-soft border-transparent hover:bg-line'
+              }`}
+            >
+              <User size={13} className="shrink-0" />
+              <span className="truncate">{profile?.username || 'Account'}</span>
+            </button>
             <button
               onClick={toggleTheme}
               title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -649,7 +963,7 @@ export default function App() {
 
       {/* View Container: ATS Career Report */}
       {viewState === 'career' && careerReport && (
-        <main className="flex-l w-full max-w-6xl mx-auto px-4 py-8">
+        <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-8">
           <CareerReport
             report={careerReport}
             onBack={() => setViewState(roadmapData ? 'roadmap' : 'prompt')}
@@ -659,8 +973,24 @@ export default function App() {
 
       {/* View Container: Group Skills */}
       {viewState === 'groups' && (
-        <main className = "flex-1 w-full max-w-6x1 mx-auto px-4 py-8">
+        <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-8">
           <GroupSkills authFetch={authFetch} BACKEND_URL={BACKEND_URL} />
+        </main>
+      )}
+
+      {/* View Container: Profile Settings */}
+      {viewState === 'profile' && (
+        <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-8">
+          <ProfileSettings
+            authFetch={authFetch}
+            BACKEND_URL={BACKEND_URL}
+            profile={profile}
+            onProfileChange={(updated) => {
+              setProfile(updated);
+              localStorage.setItem('cf_user', JSON.stringify(updated));
+            }}
+            onBack={() => setViewState('prompt')}
+          />
         </main>
       )}
 

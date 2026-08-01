@@ -15,7 +15,12 @@
 - **Weekly milestones:** Structured curriculum with focus areas, practice tasks, and mini-exercises
 - **Quiz generation & grading:** Weekly milestone quizzes (3 multiple-choice + 2 open-ended) with AI-powered per-question feedback
 - **User accounts:** Register/login with secure sessions — passwords stored only as bcrypt hashes, never plaintext
-- **Responsive UI:** Clean, modern interface with a login gate, roadmap view, and quiz flow
+- **Sign in with a username or an email:** one field accepts either, so nobody gets locked out for forgetting which they used
+- **Google Sign-In (optional):** one-click sign-in that links to an existing account with the same verified email. Hidden entirely unless a Google client ID is configured
+- **Account recovery:** "Forgot username or password?" emails a username reminder and a 30-minute, single-use reset link
+- **Profile settings:** click your username in the navbar to change your username, email, or password, and write an "About me" bio
+- **Study groups:** create or join by invite code, log weekly hours, and compete on a per-group leaderboard
+- **Responsive UI:** Clean, modern interface with light/dark mode, a login gate, roadmap view, and quiz flow
 
 ---
 
@@ -25,14 +30,20 @@
 - **Python 3.11+** with FastAPI
 - **Azure OpenAI** — generates personalized learning paths; automatic fallback for quizzes
 - **Ollama (qwen3.5:9b)** — generates and grades milestone quizzes (primary quiz model)
+- **SQLAlchemy Core** — one `DATABASE_URL` runs SQLite locally or Azure SQL in production
 - **SQLite + bcrypt + PyJWT** — user accounts, password hashing, and token-based sessions
+- **google-auth** *(optional)* — verifies Google Sign-In ID tokens
+- **smtplib** (stdlib) — password-reset and username-reminder emails; prints to the console when SMTP isn't configured
+- **slowapi** — per-IP rate limiting on auth, per-user on AI endpoints
 - **Uvicorn** — ASGI server
 - **Pydantic** — data validation
 - **CORS middleware** — enables frontend communication
 
 ### Frontend
-- **React 18** with Vite
+- **React 19** with Vite
+- **Tailwind CSS v4** — semantic color tokens driving light/dark mode
 - **Lucide React** — icons
+- **Google Identity Services** — the Sign in with Google button, loaded from Google's CDN (no npm dependency)
 - **Vite** — fast build tooling
 - **Firebase** — deployment-ready
 
@@ -52,22 +63,35 @@ Course_Forge/
 │   │   └── schemas.py           # Pydantic request/response models (paths, auth, quizzes)
 │   ├── routes/
 │   │   ├── learning_path.py     # /api/generate endpoint
-│   │   ├── auth.py              # /api/auth/register, /login, /me
-│   │   └── quiz.py              # /api/quiz/generate, /api/quiz/submit
+│   │   ├── auth.py              # register/login/google, forgot+reset, GET+PATCH /me, change-password
+│   │   ├── paths.py             # Saved-path list/fetch/delete
+│   │   ├── quiz.py              # /api/quiz/generate, /api/quiz/submit
+│   │   ├── resume.py            # /api/resume/analyze (ATS scan + job matching)
+│   │   ├── groups.py            # Study groups: create/join, hours, leaderboard
+│   │   └── health.py            # /api/health/db readiness probe
 │   └── services/
 │       ├── ai_service.py        # Azure OpenAI integration
-│       ├── resource_service.py  # Resource fetching
+│       ├── resource_service.py  # Resource fetching + YouTube caching
 │       ├── quiz_service.py      # Quiz gen/grading (Ollama primary, Azure fallback)
-│       ├── auth_service.py      # bcrypt hashing, JWT creation/validation
-│       └── database.py          # SQLite connection + schema
+│       ├── group_service.py     # Group membership, progress, leaderboard
+│       ├── auth_service.py      # bcrypt + JWT, username/email login, reset tokens, Google
+│       ├── email_service.py     # SMTP send with console fallback (stdlib, no dependency)
+│       ├── rate_limit.py        # slowapi limiter + per-IP / per-user keying
+│       └── database.py          # Schema, engine, and auto-migration
 │
 └── frontend/
     ├── index.html
     ├── package.json
     ├── vite.config.js
     └── src/
-        ├── App.jsx              # Main React component (login gate, roadmap, quizzes)
-        ├── App.css              # Styling
+        ├── App.jsx              # Main React component (auth gate, navbar, view routing)
+        ├── index.css            # Tailwind v4 + semantic light/dark color tokens
+        ├── components/
+        │   ├── GroupSkills.jsx        # Study groups view
+        │   ├── ProfileSettings.jsx    # Account / password / connected accounts
+        │   ├── GoogleSignInButton.jsx # Google Identity Services button (CDN, no npm dep)
+        │   ├── CareerReport.jsx       # Resume ATS results + job links
+        │   └── LoadingScreen.jsx      # Animated loading
         └── assets/              # Images and icons
 ```
 
@@ -153,9 +177,41 @@ JWT_SECRET=your-random-secret-here
 # ============================================================================
 OLLAMA_HOST=http://localhost:11434
 QUIZ_MODEL=qwen3.5:9b
+
+# ============================================================================
+# OPTIONAL: Google Sign-In
+# Leave unset and the "Sign in with Google" button simply doesn't render —
+# username/email sign-in works either way.
+# Create an OAuth 2.0 *Web application* client at https://console.cloud.google.com
+# (APIs & Services -> Credentials), add http://localhost:5173 as an authorized
+# JavaScript origin, then paste the Client ID here AND in frontend/.env as
+# VITE_GOOGLE_CLIENT_ID. Only the Client ID is needed — no client secret.
+# ============================================================================
+GOOGLE_CLIENT_ID=xxxxxxxx.apps.googleusercontent.com
+
+# ============================================================================
+# OPTIONAL: Outgoing email (password reset + username reminder)
+# Leave unset and reset links PRINT TO THE BACKEND CONSOLE instead of sending,
+# which is enough to test the whole flow locally.
+# For Gmail, SMTP_PASS must be an App Password (not your account password):
+# https://myaccount.google.com/apppasswords — requires 2-Step Verification.
+# ============================================================================
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=you@gmail.com
+SMTP_PASS=your-16-char-app-password
+SMTP_FROM=Course Forge <you@gmail.com>
+
+# Base URL the emailed reset link points at (your frontend, not the API)
+FRONTEND_URL=http://localhost:5173
 ```
 
 **⚠️ Never commit `.env`. It's already in `.gitignore`.**
+
+**Didn't get the reset email?** That's expected until `SMTP_HOST` is set — the message is printed to
+the terminal running `uvicorn` instead. Look for a `📧 EMAIL (not sent …)` block and copy the
+`http://localhost:5173/?reset=…` link out of it. The UI always shows the same confirmation either
+way, on purpose: the endpoint never reveals whether an address is registered.
 
 **Quick setup if you don't have Azure yet:**
 If you don't have Azure OpenAI credentials yet, you can still test the login and UI locally — just skip `AZURE_OPENAI_*` for now and you'll get a 503 error only when you try to generate a path. Add the credentials later when you're ready to test the full flow.
@@ -276,11 +332,21 @@ database at `~/.course_forge/courseforge.db` (outside the repo, so deleting or r
 project never wipes your account; override with `DATABASE_PATH`) — passwords are stored only as
 **bcrypt hashes** (one-way, unrecoverable by anyone, including developers).
 
-- `POST /auth/register` — `{ "email", "password" }` → `{ access_token, token_type, email }` (password min 8 chars)
-- `POST /auth/login` — same request/response; 401 on bad credentials
-- `GET /auth/me` — returns the current user for a valid token
+- `POST /auth/register` — `{ "email", "username", "password" }` → `{ access_token, token_type, email, username }`
+  (password 8–72 chars; username 3–32 chars, letters/numbers/underscores, stored lowercase)
+- `POST /auth/login` — `{ "identifier", "password" }` → same response. **`identifier` is a username OR an email.** 401 on bad credentials
+- `POST /auth/google` — `{ "credential" }` (a Google ID token) → same response. 401 if Google isn't configured
+- `GET /auth/me` — `{ id, email, username, bio, has_password, has_google }`
+- `PATCH /auth/me` — `{ username?, email?, bio? }`, all optional → the updated profile. 409 names the field on a collision
+- `POST /auth/change-password` — `{ current_password?, new_password }`. `current_password` may be omitted only by a Google-only account setting its first password
+- `POST /auth/forgot-password` / `POST /auth/forgot-username` — `{ "email" }` → **always** 200 with the same message, whether or not the account exists (so the endpoint can't be used to discover which emails are registered)
+- `POST /auth/reset-password` — `{ "token", "new_password" }`
 
 Send the token on protected calls: `Authorization: Bearer <access_token>`
+
+**About the tokens.** The session JWT carries only the user id — no email or username — because those go stale the moment someone edits their profile; every route reads the profile from the database instead. Reset tokens are separate: they're 30-minute JWTs with an `aud: "pwreset"` claim (so one can never be replayed as a session token) plus a digest of the current password hash, which makes them **single-use for free** — changing the password invalidates any outstanding link with no extra table to maintain.
+
+**Existing accounts** created before usernames existed are backfilled automatically on first boot, using the part of the email before the `@` (deduped with `_2`, `_3`… if that's taken). Change it any time in Profile Settings.
 
 ---
 
@@ -305,12 +371,15 @@ Two things *can* still cost you your local data, and neither is git's doing:
 > # the ~/.course_forge default must still be there
 > ```
 
-> ### ⚠️ 2. New columns on existing tables won't appear in your old DB
-> `init_db()` calls `metadata.create_all`, which creates **missing tables only** — it never adds a
-> column to a table that already exists. Add a `Column` to `users` or `groups` and your existing
-> local DB will raise `OperationalError: no such column` at runtime until you add it by hand
-> (`ALTER TABLE`) or start from a fresh file. Brand-new *tables* are picked up automatically.
-> There are no migrations yet (Alembic is the eventual fix).
+> ### ⚠️ 2. New columns on existing tables — mostly handled now
+> `metadata.create_all` still creates **missing tables only** and never runs `ALTER TABLE`.
+> `init_db()` now compensates: `_add_missing_columns()` inspects every live table and adds any
+> **nullable** column that's missing, so a teammate adding a `Column` no longer breaks your existing
+> database. It's idempotent — a second boot is a silent no-op — and works on both SQLite and Azure SQL.
+>
+> **Still not covered:** a new **NOT NULL** column (skipped with a printed warning), a changed type,
+> a dropped column, or anything needing a data backfill. Those still need hand-written SQL, or
+> Alembic, which remains the eventual proper fix.
 
 Cheap insurance before pulling backend changes:
 
@@ -478,6 +547,12 @@ QUIZ_MODEL=qwen3.5:9b
 - ✅ Quiz model routing and prompt engineering
 - ✅ User accounts: register/login (SQLite + bcrypt + JWT) protecting all generation endpoints
 - ✅ Frontend login/signup gate with persistent sessions and logout
+- ✅ Light/dark mode with semantic Tailwind v4 tokens and a system-preference default
+- ✅ Usernames + login by username *or* email, with automatic backfill for pre-existing accounts
+- ✅ Profile Settings screen (username / email / password / "About me" bio)
+- ✅ Account recovery: forgot username, forgot password, single-use signed reset links
+- ✅ Optional Google Sign-In (Google Identity Services + `google-auth` verification, with account linking)
+- ✅ Auto-migrating schema — `init_db()` adds missing nullable columns so new columns don't break existing databases
 
 ---
 
@@ -524,8 +599,23 @@ firebase deploy
 - Remember: `.env` changes require a **manual** backend restart — `--reload` only watches `.py` files
 
 ### Login/session issues
-- "Session expired" on every restart → set a fixed `JWT_SECRET` in `.env`
+- "Session expired" on every restart → set a fixed `JWT_SECRET` in `.env`. (Note: `main.py` must call `load_dotenv()` **before** importing the routers, or `.env` is read too late and the app silently falls back to a random per-boot secret.)
 - 401 on `/api/generate` or `/api/quiz/*` → the request is missing/expired its `Authorization: Bearer` token; log in again
+- `422 Unprocessable Entity` on `/api/auth/login` → you're on an old frontend. The login body is now `{ identifier, password }`, not `{ email, password }` — pull the latest and rebuild
+- `OperationalError: no such column: users.username` → you're on an old backend, or `init_db()` never ran. Restart the backend; it adds missing nullable columns automatically on boot
+
+### Account recovery / email
+- **No reset email arrived** → expected unless `SMTP_HOST` is set. The message prints to the terminal running `uvicorn` instead — look for a `📧 EMAIL (not sent …)` block and copy the `?reset=…` link out of it
+- Gmail rejects the login → `SMTP_PASS` must be an **App Password**, not your account password, and 2-Step Verification has to be on
+- Real emails send but never arrive → check Spam. Mail you send from your own address to your own address is commonly filtered
+- "That reset link has already been used" → each link dies the moment the password changes. Request a fresh one
+- The confirmation looks identical for an unregistered email — that's deliberate, so the endpoint can't be used to discover which addresses have accounts
+
+### Google Sign-In
+- Button doesn't appear → `VITE_GOOGLE_CLIENT_ID` isn't set in `frontend/.env`, or the dev server wasn't restarted (Vite only reads env vars at startup)
+- `401 "Google sign-in isn't configured on this server."` → the backend is missing `GOOGLE_CLIENT_ID`. It must be the **same** client ID as the frontend's
+- `401 "Google sign-in isn't available — the server is missing google-auth."` → run `pip install -r requirements.txt`
+- Google console error about the origin → add `http://localhost:5173` under **Authorized JavaScript origins** (not redirect URIs)
 
 ---
 

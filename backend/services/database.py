@@ -19,6 +19,8 @@ from sqlalchemy import (
     UniqueConstraint,
     create_engine,
     event,
+    inspect,
+    text,
 )
 from sqlalchemy.dialects import mssql
 from sqlalchemy.engine import Connection
@@ -96,10 +98,18 @@ metadata = MetaData()
 # Index/PK/UNIQUE string columns must be length-bounded (SQL Server caps key size;
 # NVARCHAR keys cap at 450 chars).
 
+# NOTE on username/google_id: uniqueness is enforced by the filtered indexes in
+# _ensure_unique_indexes(), NOT by unique=True here. They were added to an
+# existing table, and SQLite flatly rejects `ALTER TABLE ... ADD COLUMN ... UNIQUE`.
+# password_hash stays NOT NULL: Google-only accounts store "" (see auth_service.
+# NO_PASSWORD) because dropping a NOT NULL on SQLite means rebuilding the table.
 users = Table(
     "users", metadata,
     Column("id", Integer, primary_key=True),
     Column("email", Unicode(254), nullable=False, unique=True),
+    Column("username", Unicode(32)),
+    Column("bio", Unicode(500)),
+    Column("google_id", String(64)),
     Column("password_hash", String(255), nullable=False),
     Column("created_at", DateTime, default=datetime.utcnow, nullable=False),
 )
@@ -203,7 +213,100 @@ def get_db() -> Iterator[Connection]:
         yield conn
 
 
+def slug_username(raw: str) -> str:
+    """Turns an email prefix or display name into a legal username: lowercase,
+    [a-z0-9_] only, 3-32 chars. Shared with auth_service so the rules for a
+    backfilled username and a Google-derived one can't drift apart."""
+    cleaned = "".join(c if c.isalnum() or c == "_" else "_" for c in (raw or "").lower())
+    cleaned = cleaned.strip("_")[:32]
+    if len(cleaned) < 3:
+        cleaned = f"user_{cleaned}" if cleaned else "user"
+    return cleaned
+
+
+# ---------------------------------------------------------------------------
+# Lightweight auto-migration.
+#
+# metadata.create_all() only ever creates MISSING TABLES — it will never add a
+# column to a table that already exists. Without this, any new Column silently
+# breaks every existing database with "no such column" at runtime.
+#
+# This closes that gap for the common case (adding a nullable column). Anything
+# harder — dropping a column, changing a type, adding a NOT NULL — is reported
+# and left alone; that genuinely needs Alembic.
+# ---------------------------------------------------------------------------
+
+def _add_missing_columns(conn: Connection) -> None:
+    inspector = inspect(conn)
+    existing_tables = set(inspector.get_table_names())
+
+    for table in metadata.sorted_tables:
+        if table.name not in existing_tables:
+            continue  # create_all just made it, so it's already current
+        live_columns = {c["name"] for c in inspector.get_columns(table.name)}
+
+        for column in table.columns:
+            if column.name in live_columns:
+                continue
+            if not column.nullable:
+                print(
+                    f"⚠️ {table.name}.{column.name} is NOT NULL and missing from the "
+                    "existing table — skipping. Add it by hand or start from a fresh DB."
+                )
+                continue
+
+            col_type = column.type.compile(dialect=conn.dialect)
+            conn.exec_driver_sql(f"ALTER TABLE {table.name} ADD COLUMN {column.name} {col_type}")
+            print(f"🛠  Added missing column {table.name}.{column.name} ({col_type})")
+
+
+def _ensure_unique_indexes(conn: Connection) -> None:
+    """Uniqueness for columns added after the fact. Filtered so multiple NULLs are
+    allowed — SQL Server treats NULLs as equal in a plain unique index, SQLite
+    doesn't, and the WHERE clause makes both behave the same way."""
+    statements = {
+        "ux_users_username": "CREATE UNIQUE INDEX ux_users_username ON users (username) WHERE username IS NOT NULL",
+        "ux_users_google_id": "CREATE UNIQUE INDEX ux_users_google_id ON users (google_id) WHERE google_id IS NOT NULL",
+    }
+    existing = {idx["name"] for idx in inspect(conn).get_indexes("users")}
+    for name, sql in statements.items():
+        if name not in existing:
+            conn.exec_driver_sql(sql)
+            print(f"🛠  Created unique index {name}")
+
+
+def _backfill_usernames(conn: Connection) -> None:
+    """Accounts that predate usernames get one derived from their email prefix,
+    deduped with _2, _3… Runs once — after this there are no NULL usernames."""
+    rows = conn.execute(
+        text("SELECT id, email FROM users WHERE username IS NULL")
+    ).mappings().all()
+    if not rows:
+        return
+
+    taken = {
+        r[0] for r in conn.execute(text("SELECT username FROM users WHERE username IS NOT NULL"))
+    }
+    for row in rows:
+        base = slug_username(row["email"].split("@")[0])
+        candidate = base
+        suffix = 2
+        while candidate in taken:
+            candidate = f"{base}_{suffix}"[:32]
+            suffix += 1
+        taken.add(candidate)
+        conn.execute(
+            text("UPDATE users SET username = :u WHERE id = :id"),
+            {"u": candidate, "id": row["id"]},
+        )
+        print(f"🛠  Backfilled username for {row['email']} -> {candidate}")
+
+
 def init_db() -> None:
-    """Creates any missing tables. Portable across SQLite and Azure SQL —
-    SQLAlchemy emits the right DDL (AUTOINCREMENT vs IDENTITY, etc.) per dialect."""
+    """Creates any missing tables, then brings existing ones up to date. Portable
+    across SQLite and Azure SQL — SQLAlchemy emits the right DDL per dialect."""
     metadata.create_all(engine)
+    with engine.begin() as conn:
+        _add_missing_columns(conn)
+        _ensure_unique_indexes(conn)
+        _backfill_usernames(conn)
