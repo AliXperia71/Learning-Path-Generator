@@ -4,11 +4,11 @@ import { ArrowLeft, User, Mail, KeyRound, Save, Check, ShieldCheck } from 'lucid
 const BIO_LIMIT = 500;
 
 const inputClass =
-  'w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-card text-sm transition-all font-medium placeholder-muted/70';
+  'w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-accent focus:bg-card text-sm transition-all font-medium placeholder-muted/70';
 const labelClass = 'block text-xs font-semibold text-muted mb-2';
 const cardClass = 'bg-card p-6 rounded-2xl border border-line shadow-[0_4px_24px_rgba(0,0,0,0.02)]';
 const buttonClass =
-  'bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 disabled:opacity-50 text-white font-medium py-2.5 px-5 rounded-xl transition-all cursor-pointer inline-flex items-center justify-center gap-2 text-sm';
+  'bg-brand hover:bg-brand-hover text-brand-fg disabled:opacity-50 font-medium py-2.5 px-5 rounded-xl transition-all cursor-pointer inline-flex items-center justify-center gap-2 text-sm';
 
 export default function ProfileSettings({ authFetch, BACKEND_URL, profile, onProfileChange, onBack }) {
   // Account form — seeded from the profile the parent already loaded
@@ -119,7 +119,7 @@ export default function ProfileSettings({ authFetch, BACKEND_URL, profile, onPro
       </button>
 
       <div className="text-center space-y-1.5">
-        <h2 className="text-2xl font-semibold tracking-tight text-ink">Profile settings</h2>
+        <h2 className="font-brand text-2xl font-bold tracking-tight text-ink">Profile settings</h2>
         <p className="text-xs text-muted font-medium">Manage how you sign in and how others see you.</p>
       </div>
 
@@ -142,7 +142,7 @@ export default function ProfileSettings({ authFetch, BACKEND_URL, profile, onPro
               title="Letters, numbers and underscores only"
               className={inputClass}
             />
-            <p className="text-[11px] text-faint mt-1.5">
+            <p className="text-[11px] text-muted mt-1.5">
               Letters, numbers and underscores. This is what your study group sees.
             </p>
           </div>
@@ -167,7 +167,7 @@ export default function ProfileSettings({ authFetch, BACKEND_URL, profile, onPro
               placeholder="What are you learning, and why? Your group can see this."
               className={`${inputClass} resize-y`}
             />
-            <p className="text-[11px] text-faint mt-1.5 text-right">
+            <p className="text-[11px] text-muted mt-1.5 text-right">
               {bio.length}/{BIO_LIMIT}
             </p>
           </div>

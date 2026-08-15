@@ -1,0 +1,455 @@
+<!-- @template name="Landing" description="A one-page product landing in the system's own voice — an invented product (Takt: Swiss-clockwork timetables), a ruled hero, stat row, feature rows, a grayscale photograph and a red poster close" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CourseForge — AI learning path generator</title>
+<script src="./ds-base.js"></script>
+<!-- CF-EMBED 5/7: the brand display face, same as the app -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&display=swap" rel="stylesheet" />
+<style>
+/* Template scaffolding — page layout and web-scale sizing only; every color,
+   font, radius and shadow comes from ../../styles.css. The voice is the
+   deck's, re-derived for a scrolling page: the grid SHOWS — 2px
+   rules draw the structure — red is spent as a mark, and its one field
+   moment is the poster close (the deck's divider logic: the red page sets
+   nothing small).
+
+   THE RHYTHM: a 28px leading unit (17px Archivo body at ~1.65), 14px
+   half-step; line-heights and block margins in unit multiples, heads
+   cap-trimmed, ?baselines/B to review. The deck's seat-pinning relaxes to
+   per-block discipline on a fluid page. The system's own interface
+   components (nav, buttons, inputs) keep their styles.css leading — the
+   rhythm governs the page's text, not the controls.
+
+   THE LANDING LAWS (shared by all six systems' landing templates):
+   #1 display headers break per sentence (.line spans); #2 the landing
+   advertises an invented product played straight — modernist's is Takt,
+   timetables that run like Switzerland; #3 spacing is cluster-scoped
+   (display leading ratio-governed ≈1.06 for Archivo's tight caps — the
+   display-block lattice exemption — tight single-unit gaps inside a text
+   cluster, the air between sections); #4 no hero eyebrow — the nav brand
+   names the product.
+
+   Optical left alignment: the deck's measured Archivo 800 value carries
+   verbatim (-0.058em where caps lead a display line; em-scaled). */
+/* — palette match: the product's own scheme (near-mono ink on near-white, one
+   blue accent, black primary action) mapped onto the system's tokens. Every
+   component keeps reading var(--color-*), so nothing is restyled by hand. */
+/* CF-EMBED edit 4/7: repalette to the CourseForge logo — forge navy #0B1B2B and
+   ember #FF8900 — replacing the original near-mono ink and blue accent, so the
+   page matches the app it opens inside. Same token names, same structure; only
+   the values changed, so nothing here is restyled by hand.
+   The ember ramp holds the logo's 32° hue and walks lightness; step 500 lands
+   exactly on #FF8900, and 700/800 are the steps dark enough to carry text. */
+:root {
+  --color-bg: #F4F6F8;
+  --color-surface: #ffffff;
+  --color-text: #0B1B2B;
+  --color-accent: #AB5C00;      /* 4.55:1 on the page — the nav's active link is small text */
+  --color-accent-100: #FDF4EA; --color-accent-200: #FBE6CD; --color-accent-300: #F7CFA1;
+  --color-accent-400: #FFAF52; --color-accent-500: #FF8900; --color-accent-600: #DB7600;
+  --color-accent-700: #AB5C00; --color-accent-800: #854700; --color-accent-900: #572F00;
+  --color-accent-2: #059669;
+  --color-divider: color-mix(in srgb, #0B1B2B 22%, transparent);
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #0B1B2B 10%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #0B1B2B 12%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #0B1B2B 18%, transparent);
+}
+html[data-theme="dark"] {
+  --color-bg: #071019;
+  --color-surface: #0F1E2D;
+  --color-text: #E9EFF5;
+  --color-accent: #FF8900;      /* 8.05:1 on the dark ground — no darkening needed */
+  --color-accent-600: #FFA333; /* on a dark ground the pressed step goes lighter */
+  --color-accent-700: #FFA333;
+  --color-divider: color-mix(in srgb, #E9EFF5 20%, transparent);
+  --color-accent-2: #10b981;
+}
+/* CF-EMBED edit 5/7: headings take Chakra Petch, the app's brand face and the
+   logo's own letterforms. Body copy stays on Archivo — this page's rhythm (28px
+   leading, cap-trimmed heads) is tuned to it, and Archivo reads better at 17px
+   than a squared display face would.
+   The -0.058em optical nudge on .display / .close h3 was measured for Archivo
+   800; Chakra Petch's flat-sided caps don't need it, so it's zeroed below. */
+:root {
+  --font-heading: "Chakra Petch", "Archivo", system-ui, sans-serif;
+  --font-heading-weight: 700;
+}
+.display, .close h3 { margin-left: 0; }
+
+html { background: var(--color-bg); color-scheme: light; }
+html[data-theme="dark"] { color-scheme: dark; }
+
+/* the primary action is ink, not accent — the product's own “Generate” button */
+.btn-primary { background: var(--color-text); color: var(--color-bg); }
+.btn-primary:hover { background: color-mix(in srgb, var(--color-text) 85%, var(--color-bg)); }
+.btn-primary:active { background: color-mix(in srgb, var(--color-text) 72%, var(--color-bg)); }
+
+:root {
+  --leading: 28px;
+  --half: 14px;
+  --edge: clamp(20px, 5vw, 72px);
+  --measure: 58ch;
+}
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; text-wrap: pretty; }
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 var(--edge); }
+/* the component demo pads the masthead with its own spacing; on the page the
+   masthead's contents take the page gutter and sit on the wrap's text axis
+   (padding-only — full-width paint such as a masthead rule is untouched) */
+.nav { padding-inline: max(var(--edge), calc((100% - 1200px) / 2 + var(--edge))); }
+.nav a { white-space: nowrap; }
+.nav a[aria-current='location'] { color: var(--color-accent); } /* in-page anchor, not
+   a page link — 'location' is the truthful value; carry the component's active ink */
+@media (max-width: 480px) { .nav a { display: none; } } /* phone width: the nav
+   keeps brand + the one action (layout-only — the component's look is
+   untouched); the full link row's min-content crosses narrow-phone widths */
+
+/* — drawn structure: the 2px rule is the section seam (the deck's header
+   band as page grammar; rules span the content column, solid — this system
+   does not fade its rules) — */
+.btn { white-space: nowrap; flex: none; } /* the labels here are sentences — never let a
+   flex row squeeze one onto two lines */
+.rule2 { height: 2px; border: 0; margin: 0; background: var(--color-divider); }
+
+/* — kicker (deck grammar: uppercase, tabular, accent; no hanging dash —
+   modernist marks are squares, and they belong to lists, not labels) — */
+.kicker {
+  display: block; font-size: 13px; line-height: var(--half);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--color-accent-800); /* CF-EMBED 4/7: was accent-700. Small text takes the deep step —
+     6.4:1, where the base accent measures 3.8:1 (a large-text value; the
+     deck's kickers are 24px, this one is 13px) */
+  font-feature-settings: "tnum" 1;
+  margin: 0 0 calc(var(--leading) - var(--half));
+}
+
+/* — hero — */
+.hero { padding: calc(4 * var(--leading)) 0 calc(3 * var(--leading)); }
+.display {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: clamp(42px, 6.2vw, 84px);
+  line-height: clamp(44.5px, 6.57vw, 89px); /* law #3: ratio-governed ≈1.06 —
+     Archivo's 800 sits tight and all-cap-height; the display-block lattice
+     exemption (no 14px step is both tighter than the old look and clear) */
+  letter-spacing: -0.02em; margin: 0;
+  margin-left: -0.058em; /* optical left alignment — the deck's measured Archivo 800 value */
+  text-box: trim-both cap alphabetic;
+}
+.display .line { display: block; } /* law #1: one sentence per line */
+.hero .sub { font-size: 17px; line-height: var(--leading); max-width: var(--measure);
+  margin: calc(1.5 * var(--leading) - 1cap) 0 0;
+  text-box: trim-both cap alphabetic; } /* 1.5 units: clears the display's descenders with cluster-tight air (law #3) */
+.hero .row { display: flex; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--leading); }
+
+/* — stat row (in-grammar: red stays a MARK on the light ground — the stat
+   numerals take the accent at display size, ≥3:1 as large text per the
+   system's own accent rule; the red FIELD is reserved for the close) — */
+.stats { padding: calc(2.5 * var(--leading)) 0; }
+.stats .grid { display: grid; grid-template-columns: repeat(4, auto); justify-content: space-between; gap: calc(1.5 * var(--leading)) var(--leading); }
+.stat-num { font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: clamp(34px, 3.4vw, 48px); line-height: calc(2 * var(--leading));
+  color: var(--color-accent); /* display figures stay proportional — the deck's figure policy */
+  margin: 0; margin-left: -0.045em; /* digits lead — the deck's "0"-population value */
+  text-box: trim-both cap alphabetic; }
+.stat-label { font-size: 13px; line-height: var(--half); letter-spacing: 0.08em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 70%, transparent); /* small-text ink on the
+     light ground: 70% measures 5.8:1 (the deck's 55% furniture mix is a
+     24px large-text convention — at 13px the 4.5:1 bar applies, and 55%
+     measures only 3.7:1 here) */
+  margin: var(--half) 0 0; }
+
+/* — feature rows (the deck's ruled-toc grammar: 2px rules ON the seams,
+   red square marks hanging at the numbers — drawn structure, no cards) — */
+.features { padding: calc(3 * var(--leading)) 0 calc(2.5 * var(--leading)); }
+.feature { display: grid; grid-template-columns: minmax(56px, 120px) minmax(220px, 1fr) minmax(320px, 1.25fr);
+  gap: var(--leading) clamp(24px, 4vw, 72px); align-items: baseline;
+  padding: calc(1.5 * var(--leading)) 0; }
+.feature + .feature { border-top: 2px solid var(--color-divider); } /* the ruled seam — solid, the system's weight */
+.f-num { position: relative; font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 15px; line-height: var(--leading); color: var(--color-text);
+  font-feature-settings: "tnum" 1; margin: 0; text-box: trim-both cap alphabetic; }
+.f-num::before { content: ""; position: absolute; left: -24px; top: calc(0.5cap - 5px);
+  width: 10px; height: 10px; background: var(--color-accent); } /* the deck's 10px red square,
+     hanging left of the number's axis — at narrow widths the gutter folds it away */
+@media (max-width: 1280px) { .f-num::before { display: none; } }
+.f-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 24px; line-height: var(--leading); letter-spacing: -0.01em;
+  margin: 0; text-box: trim-both cap alphabetic; }
+.f-copy { font-size: 15.5px; line-height: var(--leading); margin: 0;
+  color: color-mix(in srgb, var(--color-text) 78%, transparent);
+  max-width: 52ch; text-box: trim-both cap alphabetic; }
+
+/* — imagery split (grayscale photograph — the system prints in black and
+   white; the box pins the bundled asset's 951×665 ratio so swaps
+   cover-crop into the same frame) — */
+.split { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: var(--leading) clamp(24px, 5vw, 96px); align-items: center;
+  padding: calc(2 * var(--leading)) 0 calc(3 * var(--leading)); }
+.split-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 32px; line-height: calc(1.5 * var(--leading)); letter-spacing: -0.015em;
+  margin: 0; text-box: trim-both cap alphabetic; }
+.split-copy .note { font-size: 15.5px; line-height: var(--leading);
+  color: color-mix(in srgb, var(--color-text) 78%, transparent);
+  margin: calc(var(--leading) - 1cap) 0 0; max-width: 48ch; text-box: trim-both cap alphabetic; }
+.split-figure { margin: 0; }
+/* CF-EMBED edit 1/7: was `.split-figure image-slot` — the <image-slot> custom
+   element was swapped for a plain <img> so the 65KB image-slot.js authoring
+   component doesn't ship. Same box, same cover-crop. */
+.split-figure img { display: block; width: 100%; aspect-ratio: 951 / 665; object-fit: cover; }
+
+/* — quote (hanging punctuation, the deck's measured Archivo advances) — */
+.quote { padding: calc(2.5 * var(--leading)) 0 calc(3.5 * var(--leading)); }
+/* CF-EMBED edit 7/7: the quote now sits in the split's right-hand column instead
+   of its own full-width section, so it drops the section padding and the figure's
+   default margin. The blockquote/figcaption rules below are shared and unchanged. */
+.split-quote { margin: 0; padding: 0; }
+.quote blockquote {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: clamp(24px, 2.6vw, 34px); line-height: calc(1.5 * var(--leading));
+  letter-spacing: -0.015em; max-width: 32ch; margin: 0;
+  text-indent: -0.496em; /* hang the opening “ (the deck's measured advance in the 800) */
+  text-box: trim-both cap alphabetic;
+}
+.quote figcaption { font-size: 15.5px; line-height: var(--leading);
+  color: color-mix(in srgb, var(--color-text) 70%, transparent); /* 5.8:1 — see .stat-label */
+  margin: calc(2 * var(--leading) - 1cap) 0 0; /* two grid units below the quote's
+     last baseline — one reads as part of the quote block; the attribution needs air */
+  text-indent: -1.209em; /* hang the leading em-dash + space (measured in the Regular) */
+  text-box: trim-both cap alphabetic; }
+
+@media (max-width: 720px) {
+  /* the phone gutter (--edge bottoms out at 20px) is narrower than the hung
+     marks' measured advances, so a hung “ or em-dash would press into or past
+     the viewport edge — seat the quote flush below this width; the hang
+     returns with the wider gutter */
+  .quote blockquote, .quote figcaption { text-indent: 0; }
+}
+
+/* — the red poster close (the deck's divider logic: the accent's one field
+   moment, type reversed to the paper token). COPY on the red is
+   display-grade only — paper display type measures 3.8:1, the deck
+   dividers' own derivation. The one small element is the ghost button, a
+   CONTROL: paper-on-red measures the same 3.8:1, which meets the system's
+   documented interface-chrome bar (the readme tunes the accent pair to at
+   least 3:1 — "enough for icons, large text and interface chrome, not for
+   body copy") — the same bar the system's own accent-filled primary button
+   label rides everywhere. */
+.close { background: var(--color-text); color: var(--color-bg); } /* the poster field is
+   ink, inverting with the theme — the accent stays a mark, as the product uses it */
+.close .wrap { padding-top: calc(3 * var(--leading)); padding-bottom: calc(3 * var(--leading)); }
+.close h3 { font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: clamp(34px, 4.2vw, 56px); line-height: clamp(36px, 4.45vw, 59.4px); /* ≈1.06 —
+     display-grade, so it carries the display-block lattice exemption (the
+     rhythm probe excludes .display and .close h3 alike) */
+  letter-spacing: -0.015em; margin: 0; margin-left: -0.058em;
+  text-box: trim-both cap alphabetic; }
+.close h3 .line { display: block; }
+.close .row { display: flex; gap: var(--space-3); flex-wrap: wrap; margin-top: calc(1.5 * var(--leading)); }
+.close .btn-ghost { color: var(--color-bg); border-color: var(--color-bg); } /* paper outline on the red field */
+footer { padding: calc(2 * var(--leading)) 0; font-size: 13px; line-height: var(--leading);
+  color: color-mix(in srgb, var(--color-text) 70%, transparent); /* 5.8:1 — see .stat-label */ }
+
+/* — responsive collapse — */
+/* the feature grid's fixed-max columns (160 + 420 + gaps) crush the copy
+   column in the tablet band, so it collapses earlier than the page */
+@media (max-width: 1120px) {
+  .feature { grid-template-columns: 1fr; gap: var(--half); }
+  .f-copy { max-width: var(--measure); }
+}
+@media (max-width: 720px) {
+  .hero { padding-top: calc(2.5 * var(--leading)); }
+  .stats .grid { grid-template-columns: repeat(2, 1fr); justify-content: start; }
+  .split { grid-template-columns: 1fr; }
+  /* CF-EMBED 7/7: was `.split-figure { order: -1 }`, which pulled the photograph
+     above the copy. A quote read before the heading it belongs to makes no sense,
+     so the column simply stacks in source order now. */
+}
+
+/* Review aid: the 28px rhythm drawn as hairlines — debug chrome, toggled by
+   ?baselines or the B key, never part of the look. */
+body[data-baselines] { position: relative; }
+body[data-baselines]::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    repeating-linear-gradient(to bottom,
+      color-mix(in srgb, var(--color-accent) 35%, transparent) 0 1px,
+      transparent 1px var(--leading)),
+    repeating-linear-gradient(to bottom,
+      transparent 0 var(--half),
+      color-mix(in srgb, var(--color-accent) 16%, transparent) var(--half) calc(var(--half) + 1px),
+      transparent calc(var(--half) + 1px) var(--leading));
+}
+</style>
+</head>
+<body>
+<!-- CF-EMBED edit 6/7: the nav is gone. This page is only ever shown inside the
+     app's modal, which supplies its own chrome (Close / Do not show again), so a
+     second brand bar and a set of in-page anchors were duplicate furniture. The
+     page now opens straight on the hero.
+     Note the theme toggle lived here — the scripts at the foot of this file
+     guard for its absence rather than assuming it exists. -->
+<div class="wrap">
+
+  <section class="hero">
+    <h1 class="display"><span class="line">You don’t need another course catalog.</span> <span class="line">You need the weeks.</span></h1>
+    <p class="sub">CourseForge takes one sentence — what you want to learn, where you’re starting, and the hours you actually have in a day — and returns a week-by-week path: focus areas, practice tasks, real video resources, and a graded quiz at every milestone.</p>
+    <div class="row">
+      <button type="button" class="btn btn-primary">Generate my first path</button>
+      <a class="btn btn-ghost" href="#product">See how it works</a>
+    </div>
+  </section>
+
+  <hr class="rule2" />
+
+  <section class="stats" aria-label="How CourseForge works, in figures">
+    <div class="grid">
+      <div><p class="stat-num">1</p><p class="stat-label">Sentence in — a full roadmap out</p></div>
+      <div><p class="stat-num">2h/day</p><p class="stat-label">Or twenty minutes — the timeline is built around your real time</p></div>
+      <div><p class="stat-num">5</p><p class="stat-label">AI-graded questions at every weekly milestone</p></div>
+      <div><p class="stat-num">0</p><p class="stat-label">Passwords stored — bcrypt hashes only, never plaintext</p></div>
+    </div>
+  </section>
+
+  <hr class="rule2" />
+
+  <section class="features" id="product">
+    <span class="kicker">What CourseForge does</span>
+    <div class="feature">
+      <p class="f-num">01</p>
+      <h2 class="f-title">A timeline that fits your term</h2>
+      <p class="f-copy">Give it a topic, your experience level, and the hours you can give a day. The model sizes the path to the subject’s real complexity — not a fixed twelve weeks — and lays out focus areas, practice tasks and a mini-exercise for each one.</p>
+    </div>
+    <div class="feature">
+      <p class="f-num">02</p>
+      <h2 class="f-title">Resources already gathered</h2>
+      <p class="f-copy">Every week arrives with live video and reading links pulled in for that week’s material, so the first hour of studying is studying — not forty open tabs and a search box.</p>
+    </div>
+    <div class="feature">
+      <p class="f-num">03</p>
+      <h2 class="f-title">Milestones you have to pass</h2>
+      <p class="f-copy">Three multiple-choice questions and two written answers close out each week. Multiple choice is scored exactly; written answers are read and marked with per-question feedback, so “I think I got it” becomes something you can check.</p>
+    </div>
+    <div class="feature">
+      <p class="f-num">04</p>
+      <h2 class="f-title">Study groups, without the comparison</h2>
+      <p class="f-copy">Share an invite code and learn the same skill together. Your hours and your pace stay private — the group board shows completed milestones and points only. Nobody sees that you set twenty minutes a day.</p>
+    </div>
+    <div class="feature">
+      <p class="f-num">05</p>
+      <h2 class="f-title">Start from your résumé</h2>
+      <p class="f-copy">Upload a résumé and get the gaps back as a starting point: what you already have evidence for, what the role you’re aiming at expects, and which of the two the next eight weeks should close.</p>
+    </div>
+  </section>
+
+  <section class="split" id="students">
+    <div class="split-copy">
+      <span class="kicker">Built for students first</span>
+      <h2 class="split-title">For the sixteen weeks nobody scheduled</h2>
+      <p class="note">Coursework has a syllabus. Everything else — the internship stack, the language, the thing the job posting assumed you knew — has nothing. CourseForge is for that second list: a plan for the semester’s spare hours, honest about how few of them there are, and equally useful to anyone else learning on their own time.</p>
+      <div class="row" style="display:flex; gap:var(--space-3); flex-wrap:wrap; margin-top:var(--leading)">
+        <button type="button" class="btn btn-primary">Start with your goal</button>
+      </div>
+    </div>
+    <!-- CF-EMBED edit 7/7: the photograph is gone; the principle quote takes the
+         right-hand column instead. It used to sit in its own full-width section
+         below, which is now removed along with its vertical space. Keeps the
+         `quote` class so the existing .quote blockquote / figcaption rules —
+         including their hanging punctuation — still apply. -->
+    <figure class="quote split-quote">
+      <!-- keep the leading “ — the blockquote's negative text-indent hangs it in the margin -->
+      <blockquote>“A plan you can start on Monday beats a syllabus you will never finish.”</blockquote>
+      <!-- keep the leading "— " — the figcaption's negative text-indent hangs it -->
+      <figcaption>— CourseForge, principle 01</figcaption>
+    </figure>
+  </section>
+
+</div>
+
+<section class="close" id="start">
+  <div class="wrap">
+    <h3><span class="line">Pick a topic. Start Monday.</span></h3>
+    <div class="row">
+      <button type="button" class="btn btn-ghost">Create a free account</button>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <footer>CourseForge — an open-source learning path generator. FastAPI, React, Azure OpenAI and Ollama.</footer>
+</div>
+<!-- CF-EMBED edit 1/7: <script src="image-slot.js"></script> removed — nothing uses it now -->
+<script>
+// theme toggle — mirrors the product's light/dark switch
+(() => {
+  const root = document.documentElement;
+  const saved = localStorage.getItem('cf-theme');
+  if (saved) root.setAttribute('data-theme', saved);
+  // CF-EMBED 6/7: the toggle lived in the nav, which is now removed. Guarded so
+  // this doesn't throw and abort the rest of the script.
+  document.getElementById('theme-toggle')?.addEventListener('click', () => {
+    const dark = root.getAttribute('data-theme') === 'dark';
+    root.setAttribute('data-theme', dark ? 'light' : 'dark');
+    localStorage.setItem('cf-theme', dark ? 'light' : 'dark');
+  });
+})();
+</script>
+<script>
+// Review aid: baseline-grid overlay — add ?baselines to the URL, or press B to toggle.
+(() => {
+  if (new URLSearchParams(location.search).has('baselines')) document.body.setAttribute('data-baselines', '');
+  addEventListener('keydown', (e) => {
+    const t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    if ((e.key === 'b' || e.key === 'B') && !e.metaKey && !e.ctrlKey && !e.altKey) document.body.toggleAttribute('data-baselines');
+  });
+})();
+</script>
+<script>
+/* ==========================================================================
+   CF-EMBED edits 2/7 and 3/7 — the ONLY block added for the in-app modal.
+   Standalone (no ?embed=1) the page behaves exactly as authored; this script
+   is inert. See README.md in this folder before re-syncing from source.
+   ========================================================================== */
+(() => {
+  const params = new URLSearchParams(location.search);
+
+  /* 2/7 — theme sync. The app owns light/dark, so mirror it in rather than
+     letting this page keep its own toggle and drift from the shell behind it.
+     (The app stores `cf_theme`; this page's own key is `cf-theme` — different
+     keys on purpose, so an embedded view never writes over the app's choice.) */
+  const applyTheme = (t) => {
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  };
+  applyTheme(params.get('theme'));
+
+  if (!params.has('embed')) return;
+
+  // The shell's Sun/Moon button stays usable behind the modal — follow it live.
+  addEventListener('message', (e) => {
+    if (e.origin !== location.origin) return;
+    if (e.data && e.data.type === 'cf-theme') applyTheme(e.data.theme);
+  });
+
+  // Kept for safety: edit 6/7 removed the nav (and with it the toggle), but if
+  // a future re-sync brings the nav back, the app still owns the theme here.
+  const toggle = document.getElementById('theme-toggle');
+  if (toggle) toggle.style.display = 'none';
+
+  /* 3/7 — the sign-up CTAs are inert <button>s in the standalone page. Inside
+     the modal, make each one dismiss the modal so the user lands on the form
+     they just asked for instead of clicking a dead control. */
+  const close = () => parent.postMessage({ type: 'cf-landing-close' }, location.origin);
+  for (const btn of document.querySelectorAll('button.btn')) {
+    if (btn.id === 'theme-toggle') continue;
+    btn.addEventListener('click', close);
+  }
+})();
+</script>
+</body>
+</html>

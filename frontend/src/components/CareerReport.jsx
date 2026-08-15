@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowLeft, Briefcase, ExternalLink, TrendingUp } from 'l
 const SEVERITY_STYLES = {
   high: 'bg-rose-50/60 dark:bg-rose-500/10 border-rose-500/15 text-rose-700 dark:text-rose-300',
   medium: 'bg-amber-50/60 dark:bg-amber-500/10 border-amber-500/15 text-amber-700 dark:text-amber-300',
-  low: 'bg-blue-50/50 dark:bg-blue-500/10 border-blue-500/10 text-blue-700 dark:text-blue-300',
+  low: 'bg-ember/10 dark:bg-ember/15 border-accent/20 text-accent dark:text-ember-soft',
 };
 
 const scoreColor = (score) =>
@@ -16,22 +16,22 @@ export default function CareerReport({ report, onBack }) {
     <div className="space-y-6 animate-fadeIn max-w-3xl mx-auto">
 
       {/* Score header */}
-      <div className="bg-neutral-900 p-6 rounded-2xl text-white relative overflow-hidden">
+      <div className="bg-slab p-6 rounded-2xl text-slab-fg relative overflow-hidden">
         <button
           onClick={onBack}
-          className="absolute top-5 right-5 text-neutral-400 hover:text-white text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
+          className="absolute top-5 right-5 text-slab-muted hover:text-slab-fg text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
         >
           <ArrowLeft size={13} /> Back to planner
         </button>
-        <span className="text-[10px] font-bold tracking-widest text-blue-400 uppercase">ATS Resume Audit</span>
+        <span className="text-[10px] font-bold tracking-widest text-ember uppercase">ATS Resume Audit</span>
         <div className="flex items-end gap-3 mt-2">
           <span className={`text-5xl font-bold tracking-tight ${scoreColor(report.ats_score)}`}>
             {report.ats_score}
           </span>
-          <span className="text-sm text-neutral-400 font-medium pb-1.5">/ 100 ATS score</span>
+          <span className="text-sm text-slab-muted font-medium pb-1.5">/ 100 ATS score</span>
         </div>
         {report.summary && (
-          <p className="text-xs text-neutral-400 font-medium leading-relaxed mt-3 border-t border-neutral-800 pt-3 max-w-xl">
+          <p className="text-xs text-slab-muted font-medium leading-relaxed mt-3 border-t border-slab-line pt-3 max-w-xl">
             {report.summary}
           </p>
         )}

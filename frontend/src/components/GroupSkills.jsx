@@ -313,7 +313,7 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
     return (
       <div className="max-w-2xl mx-auto space-y-5 animate-fadeIn">
         <div className="text-center space-y-1.5 mb-2">
-          <h2 className="text-2xl font-semibold tracking-tight text-ink">Group Skills</h2>
+          <h2 className="font-brand text-2xl font-bold tracking-tight text-ink">Group Skills</h2>
           <p className="text-xs text-muted font-medium">
             Team up on a skill, race the leaderboard. Everyone sets their own pace — privately.
           </p>
@@ -322,7 +322,7 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
         <div className="flex gap-2.5">
           <button
             onClick={() => setView('create')}
-            className="flex-1 bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 text-white font-medium py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 text-sm"
+            className="flex-1 bg-brand hover:bg-brand-hover text-brand-fg font-medium py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 text-sm"
           >
             <Plus size={15} /> Create a group
           </button>
@@ -391,7 +391,7 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
                 value={newGroupName}
                 onChange={(e) => setNewGroupName(e.target.value)}
                 placeholder="Weekend Warriors"
-                className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-card text-sm transition-all placeholder-muted/70 font-medium"
+                className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-accent focus:bg-card text-sm transition-all placeholder-muted/70 font-medium"
               />
             </div>
             <div>
@@ -402,7 +402,7 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
                 value={newGroupTopic}
                 onChange={(e) => setNewGroupTopic(e.target.value)}
                 placeholder="Python backend development"
-                className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-card text-sm transition-all placeholder-muted/70 font-medium"
+                className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-accent focus:bg-card text-sm transition-all placeholder-muted/70 font-medium"
               />
             </div>
             <div>
@@ -428,7 +428,7 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
             <button
               type="submit"
               disabled={formBusy}
-              className="w-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-all cursor-pointer text-sm"
+              className="w-full bg-brand hover:bg-brand-hover text-brand-fg disabled:opacity-50 font-medium py-3 rounded-xl transition-all cursor-pointer text-sm"
             >
               {formBusy ? 'Creating\u2026' : 'Create group'}
             </button>
@@ -461,14 +461,14 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
                 value={joinCode}
                 onChange={(e) => setJoinCode(e.target.value)}
                 placeholder="e.g. ae3f5bb4"
-                className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-card text-sm transition-all placeholder-muted/70 font-medium font-mono"
+                className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-accent focus:bg-card text-sm transition-all placeholder-muted/70 font-medium font-mono"
               />
             </div>
             {error && <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">{error}</p>}
             <button
               type="submit"
               disabled={formBusy}
-              className="w-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-all cursor-pointer text-sm"
+              className="w-full bg-brand hover:bg-brand-hover text-brand-fg disabled:opacity-50 font-medium py-3 rounded-xl transition-all cursor-pointer text-sm"
             >
               {formBusy ? 'Joining\u2026' : 'Join group'}
             </button>
@@ -530,7 +530,7 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="block text-xs font-semibold text-muted">HOURS PER DAY</label>
-                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{hoursInput} hrs/day</span>
+                  <span className="text-xs font-bold text-accent">{hoursInput} hrs/day</span>
                 </div>
                 <input
                   type="range"
@@ -539,14 +539,14 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
                   step={0.5}
                   value={hoursInput}
                   onChange={(e) => setHoursInput(parseFloat(e.target.value))}
-                  className="w-full h-1 bg-line rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  className="w-full h-1 bg-line rounded-lg appearance-none cursor-pointer accent-ember"
                 />
               </div>
               {error && <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">{error}</p>}
               <button
                 type="submit"
                 disabled={formBusy}
-                className="w-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-all cursor-pointer text-sm flex items-center justify-center gap-1.5"
+                className="w-full bg-brand hover:bg-brand-hover text-brand-fg disabled:opacity-50 font-medium py-3 rounded-xl transition-all cursor-pointer text-sm flex items-center justify-center gap-1.5"
               >
                 <Sparkles size={15} /> {formBusy ? 'Building your roadmap\u2026' : 'Lock in my pace'}
               </button>
@@ -571,7 +571,7 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
         <div className="max-w-2xl mx-auto bg-card border border-line rounded-2xl p-6 shadow-xs space-y-6 animate-fadeIn">
           <div className="flex items-center justify-between border-b border-surface pb-4">
             <div>
-              <span className="text-[10px] font-bold tracking-wider text-blue-600 dark:text-blue-400 uppercase">
+              <span className="text-[10px] font-bold tracking-wider text-accent uppercase">
                 Week {activeQuiz.week_number} evaluation
               </span>
               <h3 className="text-base font-semibold text-ink tracking-tight">{activeQuiz.milestone}</h3>
@@ -585,7 +585,7 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
               {activeQuiz.questions?.map((q) => (
                 <div key={q.question_number} className="space-y-3 border-b border-surface pb-5 last:border-0 last:pb-0">
                   <h4 className="text-sm font-semibold text-ink flex items-start gap-1.5 leading-snug">
-                    <span className="text-faint font-mono text-xs mt-0.5">{q.question_number}.</span>
+                    <span className="text-muted font-mono text-xs mt-0.5">{q.question_number}.</span>
                     {q.question}
                   </h4>
                   {q.type === 'multiple_choice' ? (
@@ -595,7 +595,7 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
                           key={oIdx}
                           className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border text-xs font-medium transition-all ${
                             quizAnswers[q.question_number] === opt
-                              ? 'bg-blue-50/50 dark:bg-blue-500/10 border-blue-500 text-blue-900 dark:text-blue-300'
+                              ? 'bg-ember/10 dark:bg-ember/15 border-accent text-accent dark:text-ember-soft'
                               : 'bg-surface border-transparent hover:bg-line/60 text-ink-soft'
                           }`}
                         >
@@ -606,7 +606,7 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
                             checked={quizAnswers[q.question_number] === opt}
                             onChange={() => setQuizAnswers({ ...quizAnswers, [q.question_number]: opt })}
                             required
-                            className="accent-blue-600 h-3.5 w-3.5"
+                            className="accent-ember h-3.5 w-3.5"
                           />
                           {opt}
                         </label>
@@ -619,12 +619,12 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
                       value={quizAnswers[q.question_number] || ''}
                       onChange={(e) => setQuizAnswers({ ...quizAnswers, [q.question_number]: e.target.value })}
                       placeholder="Your answer\u2026"
-                      className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-card text-xs font-medium transition-all resize-none placeholder-muted/60"
+                      className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-accent focus:bg-card text-xs font-medium transition-all resize-none placeholder-muted/60"
                     />
                   )}
                 </div>
               ))}
-              <button type="submit" className="bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 text-white font-medium text-xs px-5 py-3 rounded-xl transition-all cursor-pointer">
+              <button type="submit" className="bg-brand hover:bg-brand-hover text-brand-fg font-medium text-xs px-5 py-3 rounded-xl transition-all cursor-pointer">
                 Submit and log this week
               </button>
             </form>
@@ -643,14 +643,14 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
                   {quizResult.score} <span className="text-sm font-medium text-muted">/ {quizResult.total} correct</span>
                 </div>
                 {pointsEarned !== null && (
-                  <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 inline-flex items-center gap-1">
+                  <p className="text-xs font-semibold text-accent inline-flex items-center gap-1">
                     <Trophy size={13} /> +{pointsEarned} points
                   </p>
                 )}
               </div>
               <button
                 onClick={finishQuizFlow}
-                className="w-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 text-white font-medium p-3 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                className="w-full bg-brand hover:bg-brand-hover text-brand-fg font-medium p-3 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <RotateCcw size={14} /> Back to group
               </button>
@@ -693,16 +693,16 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
         </div>
 
         {/* Group header */}
-        <div className="bg-neutral-900 p-6 rounded-2xl text-white relative overflow-hidden">
-          <span className="text-[10px] font-bold tracking-widest text-blue-400 uppercase">{board.group.skill_topic}</span>
-          <h2 className="text-lg font-semibold mt-1 tracking-tight">{board.group.name}</h2>
-          <div className="flex flex-wrap items-center gap-4 mt-4 text-[11px] text-neutral-400 font-medium border-t border-neutral-800 pt-4">
-            <div className="flex items-center gap-1.5 text-neutral-400">
+        <div className="bg-slab p-6 rounded-2xl text-slab-fg relative overflow-hidden">
+          <span className="text-[10px] font-bold tracking-widest text-ember uppercase">{board.group.skill_topic}</span>
+          <h2 className="font-brand text-lg font-bold mt-1 tracking-tight">{board.group.name}</h2>
+          <div className="flex flex-wrap items-center gap-4 mt-4 text-[11px] text-slab-muted font-medium border-t border-slab-line pt-4">
+            <div className="flex items-center gap-1.5 text-slab-muted">
               <Users size={13} /> {board.group.member_count}/{board.group.max_members} members
             </div>
             <button
               onClick={() => copyInviteCode(board.group.invite_code)}
-              className="flex items-center gap-1.5 text-neutral-400 hover:text-white transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 text-slab-muted hover:text-slab-fg transition-colors cursor-pointer"
             >
               {copiedCode ? <Check size={13} /> : <Copy size={13} />}
               <span className="font-mono">{board.group.invite_code}</span>
@@ -748,7 +748,7 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
               )}
               <button
                 onClick={handleTakeWeeklyQuiz}
-                className="w-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 text-white font-medium py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 text-sm"
+                className="w-full bg-brand hover:bg-brand-hover text-brand-fg font-medium py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 text-sm"
               >
                 <Sparkles size={15} /> Take this week's quiz
               </button>
@@ -771,7 +771,7 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
               <div
                 key={entry.user_id}
                 className={`flex items-center justify-between gap-3 p-3 rounded-xl border text-xs font-medium ${
-                  entry.is_me ? 'bg-blue-50/50 dark:bg-blue-500/10 border-blue-500/30' : 'bg-surface/60 border-transparent'
+                  entry.is_me ? 'bg-ember/10 dark:bg-ember/15 border-accent/30' : 'bg-surface/60 border-transparent'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
@@ -785,7 +785,7 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-ink">
                       {entry.display_name}
-                      {entry.is_me && <span className="text-blue-600 dark:text-blue-400"> (you)</span>}
+                      {entry.is_me && <span className="text-accent"> (you)</span>}
                     </p>
                     <p className="text-[10px] text-muted font-medium capitalize">
                       Week {entry.current_week} · {entry.status}

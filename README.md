@@ -53,6 +53,11 @@
 
 ```
 Course_Forge/
+├── compose.yaml                 # Runs both containers together (see Deployment)
+├── .env.example                 # Compose build args only — app config is backend/.env
+├── ops/
+│   ├── deploy.sh                # Gated deploy: backup → pull → rebuild → health → auto-rollback
+│   └── backup-db.sh             # Nightly snapshot of the DB out of the cf-data volume
 ├── backend/
 │   ├── main.py                 # FastAPI entry point, CORS config, DB init
 │   ├── requirements.txt         # Python dependencies
@@ -81,8 +86,12 @@ Course_Forge/
 │
 └── frontend/
     ├── index.html
+    ├── nginx.conf               # SPA fallback + /api proxy for the Docker image
     ├── package.json
     ├── vite.config.js
+    ├── public/
+    │   └── landing/             # Marketing page, served as-is and shown in an iframe
+    │       └── README.md        #   how it got here and how to re-sync it
     └── src/
         ├── App.jsx              # Main React component (auth gate, navbar, view routing)
         ├── index.css            # Tailwind v4 + semantic light/dark color tokens
@@ -90,6 +99,7 @@ Course_Forge/
         │   ├── GroupSkills.jsx        # Study groups view
         │   ├── ProfileSettings.jsx    # Account / password / connected accounts
         │   ├── GoogleSignInButton.jsx # Google Identity Services button (CDN, no npm dep)
+        │   ├── LandingModal.jsx       # "About Course Forge" full-screen pop-up
         │   ├── CareerReport.jsx       # Resume ATS results + job links
         │   └── LoadingScreen.jsx      # Animated loading
         └── assets/              # Images and icons
@@ -558,23 +568,388 @@ QUIZ_MODEL=qwen3.5:9b
 
 ## 🚀 Deployment
 
-### Backend (Docker)
+### The whole stack, one command
+
+`compose.yaml` at the repo root runs both containers together. This is the
+recommended way to deploy — on a VPS, a home server, or just to check the
+production build locally.
+
 ```bash
-cd backend
-docker build -t course-forge-backend .
-docker run -p 8000:8000 --env-file .env course-forge-backend
+cp .env.example .env          # only VITE_GOOGLE_CLIENT_ID lives here; optional
+docker compose up -d --build
+curl localhost:8080/api/health/db
 ```
 
-### Frontend (Firebase/Vercel)
+The app is then on `http://127.0.0.1:8080`.
+
+What the file does, and why:
+
+| | |
+|---|---|
+| `api` publishes **no** host port | Reachable only from `web` over the compose network. Nothing talks to the backend except nginx. |
+| `web` publishes `127.0.0.1:8080` | Loopback only. A tunnel or reverse proxy is the front door; there is nothing to firewall. |
+| nginx proxies `/api` → `api:8000` | The browser sees **one origin**, so CORS never enters the picture and only one hostname needs to be exposed. |
+| Named volume `cf-data` → `/root/.course_forge` | The database. `docker compose down`, image rebuilds and `docker system prune` all leave it alone. |
+
+**`VITE_*` variables are baked in at build time.** Vite inlines them into the
+bundle; the container never reads them at runtime. After changing either one:
+
 ```bash
-cd frontend
-npm run build
-firebase deploy
+docker compose up -d --build web
 ```
+
+**Individual containers**, if you want just one:
+
+```bash
+cd backend  && docker build -t course-forge-backend . && docker run -p 8000:8000 --env-file .env course-forge-backend
+cd frontend && docker build -t course-forge-web . && docker run -p 8080:80 course-forge-web
+```
+
+Note the frontend image on its own has no backend to proxy `/api` to — nginx
+will fail to start. Use compose.
+
+---
+
+## 🏠 Self-hosting on your own machine
+
+Running Course Forge on hardware you own, reachable from the internet, without
+opening a single inbound port. A [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+dials *out* from your machine, so there is no port forwarding, no dynamic DNS,
+and TLS is terminated by Cloudflare.
+
+> This replaces cloud **hosting** cost only. Azure OpenAI is billed per token and
+> costs exactly the same wherever the app runs.
+
+### 1. Sanity-check the nginx config first
+
+Five seconds, and it saves you finding out after a long build:
+
+```bash
+docker run --rm -v "$PWD/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
+  nginx:stable-alpine nginx -t
+```
+
+### 2. Build on the target machine
+
+```bash
+git clone <this repo> /opt/course-forge && cd /opt/course-forge
+cp backend/.env.example backend/.env   # fill in Azure, YouTube, JWT_SECRET
+cp .env.example .env                   # VITE_GOOGLE_CLIENT_ID, if you use it
+docker compose up -d --build
+```
+
+Build **on the machine that will run it**. An Apple Silicon Mac produces arm64
+images; most servers are x86_64. Cross-building needs
+`docker buildx --platform linux/amd64`.
+
+Expect the first build to be slow on modest hardware — `npm install` plus
+`vite build`, and the backend image compiles the Microsoft ODBC driver layer
+(needed only for Azure SQL, harmless on SQLite).
+
+### 3. Point `backend/.env` at your real domain
+
+```bash
+ALLOWED_ORIGINS=https://courseforgeapp.ai
+FRONTEND_URL=https://courseforgeapp.ai   # base of every emailed password-reset link
+GOOGLE_CLIENT_ID=<same value as VITE_GOOGLE_CLIENT_ID in the root .env>
+```
+
+`FRONTEND_URL` is the one that bites: left at `localhost:5173`, recovery emails
+go out with links to nothing. Note it takes a **container restart**
+(`docker compose up -d api`), not a rebuild — the backend reads env at runtime.
+
+Leave `DATABASE_URL` unset. The volume plus `HOME=/root` gives you the documented
+default path inside the container — don't invent a third location.
+
+> **The domain is not compiled into the frontend.** Because `VITE_API_BASE_URL`
+> is empty, the app calls `/api/...` relative to whatever host served it. You can
+> add, change or move hostnames without ever rebuilding. The *only* build-time
+> value is `VITE_GOOGLE_CLIENT_ID`.
+
+### 4. Cloudflare Tunnel
+
+Needs a domain on Cloudflare. (A `trycloudflare.com` quick tunnel works for a
+smoke test but hands out a new random hostname every restart, which breaks Google
+sign-in and reset links each time.)
+
+```bash
+cloudflared tunnel login
+cloudflared tunnel create courseforge
+cloudflared tunnel route dns courseforge courseforgeapp.ai
+cloudflared tunnel route dns courseforge www.courseforgeapp.ai
+```
+
+Each `route dns` creates a **proxied** CNAME (orange cloud). Proxied is required
+— a grey-cloud record bypasses the tunnel and resolves to nothing.
+
+`/etc/cloudflared/config.yml`:
+
+```yaml
+tunnel: courseforge
+credentials-file: /root/.cloudflared/<tunnel-id>.json
+
+ingress:
+  - hostname: courseforgeapp.ai
+    service: http://localhost:8080
+  - hostname: www.courseforgeapp.ai
+    service: http://localhost:8080
+  - service: http_status:404
+```
+
+```bash
+sudo cloudflared service install   # survives reboots
+sudo systemctl status cloudflared
+```
+
+`www` is routed through the tunnel but never actually serves the app — nginx
+301s it to the bare domain (see `frontend/nginx.conf`). That redirect matters
+more than it looks: **the session JWT lives in localStorage, which is scoped per
+origin.** If both hostnames served the app, a user who signed in on `www` and
+later landed on the apex would silently appear logged out.
+
+### 5. Cloudflare dashboard settings
+
+Defaults are mostly fine. These four are worth setting deliberately:
+
+| Setting | Value | Why |
+|---|---|---|
+| SSL/TLS → Overview | **Full (strict)** | Tunnel traffic already bypasses this, but *Flexible* causes redirect loops the moment any non-tunnel record exists. Don't leave it on Flexible. |
+| SSL/TLS → Edge Certificates → **Always Use HTTPS** | **On** | Upgrades `http://` visitors before they reach the tunnel. |
+| Speed → Optimization → **Rocket Loader** | **Off** | It defers and reorders `<script>` tags. It breaks React apps and the landing page's inline scripts. |
+| Security → Bots → **Bot Fight Mode** | **Off** initially | It can challenge legitimate XHR and produce 403s that look like app bugs. Turn it on later, deliberately, if you need it. |
+
+Leave **HSTS off** until the site has been stable for a while — it is a
+long-lived, hard-to-undo commitment enforced by browsers, not by you.
+
+Universal SSL covers the apex and one level of subdomain, so both
+`courseforgeapp.ai` and `www.courseforgeapp.ai` get certificates automatically.
+
+### 6. Add the domain to Google OAuth
+
+In [Google Cloud Console](https://console.cloud.google.com) → APIs & Services →
+Credentials → your OAuth client → **Authorized JavaScript origins**, add:
+
+```
+https://courseforgeapp.ai
+https://www.courseforgeapp.ai      # belt and braces; the redirect means it's never actually used
+```
+
+No scheme mismatch, no trailing slash, no port. Redirect URIs are not needed —
+Google Identity Services uses the origin only.
+
+Two things that fail *silently* here:
+
+- **An unlisted origin.** No error, no console message, the button just does
+  nothing. Check this before debugging anything else about the login.
+- **A consent screen still in "Testing".** Only accounts you've added as test
+  users can sign in; everyone else is refused. Publish the app (OAuth consent
+  screen → **Publish app**) before anyone but you uses it.
+
+### 7. Back up the database
+
+`ops/backup-db.sh` takes a consistent snapshot out of the `cf-data` volume using
+sqlite3's backup API (safe on a live database, unlike `cp`), gzips it, and prunes
+anything older than 30 days.
+
+```bash
+./ops/backup-db.sh                        # → ~/backups/courseforge/
+./ops/backup-db.sh /mnt/backup-hdd        # → wherever you point it
+```
+
+Nightly, via `crontab -e`:
+
+```cron
+15 3 * * * /opt/course-forge/ops/backup-db.sh >> /var/log/cf-backup.log 2>&1
+```
+
+**A backup on the same disk as the database is not a backup.** It protects
+against a bad migration or app-level corruption, not against the drive failing.
+Point it at a second physical disk, and/or set `CF_BACKUP_REMOTE` to an ssh
+target to mirror off the box entirely:
+
+```cron
+15 3 * * * CF_BACKUP_REMOTE=user@other-machine:~/backups/courseforge /opt/course-forge/ops/backup-db.sh >> /var/log/cf-backup.log 2>&1
+```
+
+Restore is just a file copy — stop the stack, gunzip, and put it back:
+
+```bash
+docker compose stop api
+gunzip -c ~/backups/courseforge/courseforge-<stamp>.db.gz > /tmp/restore.db
+docker compose cp /tmp/restore.db api:/root/.course_forge/courseforge.db
+docker compose start api
+```
+
+### Known limits of this setup
+
+- **Cloudflare's free plan times a request out at 100 seconds** (a 524). Path
+  generation measures ~33s, so there's room — but a slow Azure day could brush
+  it. The real fix is response streaming, not a bigger nginx timeout.
+- **Rate limiting depends on the client IP reaching the backend.** nginx sets
+  `X-Forwarded-For` from Cloudflare's `CF-Connecting-IP` (which Cloudflare
+  overwrites at the edge, so a client can't forge it) and
+  `services/rate_limit.py` reads the first entry. Limits therefore key off the
+  real visitor, not nginx's container IP. This can't be bypassed from outside
+  because the backend publishes no host port — **don't add one.**
+- **One instance, in-memory rate-limit counters.** Fine as-is. Running two
+  backends means setting `RATE_LIMIT_STORAGE_URI` to a Redis URL so the counters
+  are shared.
+
+---
+
+## 🎨 Brand
+
+Everything visual comes from the logo (`frontend/src/assets/logo-source.png`).
+Both colours were sampled out of the artwork, not picked by eye.
+
+| Role | Light | Dark |
+|---|---|---|
+| **Forge navy** — text, primary action, the dark slab | `#0B1B2B` | `#E9EFF5` (inverts) |
+| **Ember** — links, focus, active states | `#AB5C00` | `#FF8900` |
+| Page / card | `#F4F6F8` / `#FFFFFF` | `#071019` / `#0F1E2D` |
+
+Ember is an **accent**, not a second primary — that's the ratio it holds in the
+logo, where it's about 8% of the non-white pixels. Painting every button orange
+stops it reading as this brand.
+
+**Why two ember values.** The literal logo orange `#FF8900` measures **2.38:1**
+on white — unreadable as text. `#AB5C00` is the same 32° hue at 67% value, which
+still reads as the logo's orange but clears 4.5:1 on both the page and the card.
+On the dark ground the raw ember is fine (7.1:1), so it's used directly there.
+`--color-ember` is always the literal logo colour, for fills and marks where a
+shape carries the contrast rather than text.
+
+Every text/background pair in the UI was contrast-checked in both themes.
+
+**Type.** [Chakra Petch](https://fonts.google.com/specimen/Chakra+Petch) for the
+wordmark and page headings — its clipped, squared letterforms are an exact match
+for the logo's. Body copy stays on the system stack: more readable, and no
+download. Use `font-brand` for display text only.
+
+**Tokens live in `frontend/src/index.css`.** Use them (`bg-brand`, `text-accent`,
+`bg-slab`) rather than raw Tailwind colours, so a future palette change is one
+file. The exceptions are deliberate: rose and emerald stay hardcoded because they
+carry meaning (error, success) rather than brand.
+
+Two places keep their own copy of the palette because they can't read the app's
+stylesheet, and both say so in a comment: `utils/roadmapExport.js` (the PDF opens
+in a detached window) and `public/landing/index.html` (a separate document).
+
+**Logo assets** — `Logo.jsx` picks the variant from the theme in JS, so only one
+file downloads:
+
+| File | Use |
+|---|---|
+| `logo-mark.png` / `logo-mark-light.png` | the anvil alone — navbar |
+| `logo-full.png` / `logo-full-light.png` | anvil + wordmark — sign-in |
+| `public/favicon-32.png`, `apple-touch-icon.png`, `icon-512.png` | light mark on a navy tile, so it reads on light *and* dark tab bars |
+
+The `-light` variants lift the navy to near-white for dark backgrounds; the ember
+is identical in both, since it's the one colour that reads on either ground.
+
+---
+
+## 📦 Deploying updates
+
+Code moves laptop → GitHub → server. The server never has work of its own; it is
+a clean mirror of a remote branch.
+
+### On your laptop
+
+```bash
+git push origin main        # or wherever the server tracks
+```
+
+### On the server
+
+```bash
+cd /opt/course-forge
+./ops/deploy.sh
+```
+
+That's the whole workflow. `deploy.sh` does, in order:
+
+1. **Refuses if the checkout is dirty.** A production tree is a mirror, not a
+   workspace.
+2. **Refuses anything that isn't a fast-forward.** Divergence means a force-push
+   or a stray local commit; either deserves a human.
+3. **Prints every incoming commit and changed file, then asks.** It calls out
+   changes to `compose.yaml`, either `Dockerfile`, `nginx.conf`,
+   `requirements.txt` or `database.py` explicitly, because those are the ones
+   that break a deploy rather than a feature.
+4. **Backs up the database** — before the new code can touch it.
+5. `git merge --ff-only`, then `docker compose up -d --build`.
+6. **Gates on health:** polls `/api/health/db` *and* fetches a client-side route
+   to confirm nginx is serving the SPA. The API being up doesn't prove the
+   frontend built.
+7. **Rolls back automatically** if that gate fails — resets to the previous
+   commit, rebuilds, and tells you the bad commit range.
+
+`./ops/deploy.sh -y` skips the confirmation prompt.
+
+### Things worth knowing
+
+**`.env` files are gitignored, so they live only on the server.** `git pull`
+never touches them. When you add a new variable, add it on the server by hand —
+nothing will remind you.
+
+**A build failure costs zero downtime.** Compose builds images first and only
+then recreates containers, so a broken build leaves the running version serving.
+Actual downtime is a container restart, a few seconds.
+
+**Changing `VITE_GOOGLE_CLIENT_ID` needs a rebuild**, not a restart — Vite inlines
+it. Everything in `backend/.env` is read at runtime, so
+`docker compose up -d api` is enough for those.
+
+**First deploy on a fresh machine** needs the repo cloned and both `.env` files
+in place; see "Self-hosting" above. If the repo is private, give the server a
+read-only deploy key:
+
+```bash
+ssh-keygen -t ed25519 -C "veriton-deploy" -f ~/.ssh/id_ed25519 -N ""
+cat ~/.ssh/id_ed25519.pub    # GitHub → repo → Settings → Deploy keys → Add (leave write access OFF)
+```
+
+**Pushing to two remotes.** If you keep a personal mirror alongside the team
+repo, make one push reach both:
+
+```bash
+git remote set-url --add --push origin git@github.com:alibhatti02/Learning-Path-Generator-Group-Project.git
+git remote set-url --add --push origin git@github.com:AliXperia71/Learning-Path-Generator.git
+```
+
+After that `git push origin main` writes to both. (Adding the first push URL
+replaces the implicit default, which is why both lines are needed.)
+
+**Deploying from a shared repo is a deliberate choice.** The server tracks a
+branch other people can merge into, so a teammate's PR is one command away from
+your live domain. `deploy.sh` is manual and shows you the diff precisely so that
+command is never an accident. If that ever stops feeling like enough, point the
+server at a `production` branch you fast-forward yourself.
 
 ---
 
 ## 🐛 Troubleshooting
+
+### `400 API version not supported` on /api/generate
+
+Almost always the **endpoint**, not the API version — the message is misleading.
+
+Azure AI Foundry shows you two URLs. Use the **resource** one:
+
+```
+✅  https://<resource>.services.ai.azure.com/
+❌  https://<resource>.services.ai.azure.com/api/projects/<project>
+```
+
+The second is the *project* endpoint, for the `azure-ai-projects` SDK. The
+`AzureOpenAI` client appends `/openai/deployments/<name>/chat/completions` to
+whatever you give it, so a project URL builds a route that doesn't exist, and the
+gateway rejects it with a generic 400 that blames the API version.
+
+Quick way to tell them apart: if `AZURE_OPENAI_ENDPOINT` has a path after the
+hostname, it's wrong. Fix it and restart the backend — `.env` is read at import,
+so `--reload` alone won't pick it up.
 
 ### Backend won't start
 - Ensure Python 3.11+ is installed: `python --version`

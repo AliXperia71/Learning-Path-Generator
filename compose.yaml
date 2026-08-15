@@ -1,0 +1,58 @@
+# Course Forge — single-host deployment (home server behind a Cloudflare Tunnel).
+#
+# Two containers on one private network. Only `web` publishes a port, and only on
+# loopback: cloudflared is the sole front door, so there are no inbound firewall
+# rules, no port forwarding and no dynamic DNS. nginx proxies /api to `api`, which
+# keeps the browser on one origin — no CORS, one hostname on the tunnel.
+#
+#   docker compose up -d --build      # build on the target host, not a Mac (arch)
+#   docker compose logs -f api
+#   docker compose down               # data survives: it lives in the cf-data volume
+#
+# See README.md → "Self-hosting on your own machine" for the tunnel and backups.
+
+services:
+  api:
+    build:
+      context: ./backend
+    env_file: ./backend/.env
+    environment:
+      # database.py resolves the SQLite file via os.path.expanduser("~"), which
+      # reads $HOME. Docker already sets it to /root for the root user, but
+      # pinning it here means the volume below can't silently end up unused —
+      # and it keeps the documented default DB path instead of inventing a new
+      # one via DATABASE_URL.
+      HOME: /root
+    volumes:
+      - cf-data:/root/.course_forge
+    restart: unless-stopped
+    # Deliberately no `ports`. The API is reachable only from `web` over the
+    # compose network, which is also why the X-Forwarded-For header nginx sets
+    # (and slowapi's rate limiter trusts) can't be spoofed from outside.
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        # Vite inlines VITE_* at BUILD time, so these are build args, not env.
+        # Changing either one requires a rebuild — restarting won't do it.
+        #
+        # Empty = same-origin: the app calls /api/... and nginx proxies it.
+        VITE_API_BASE_URL: ""
+        # Public value, not a secret. Unset -> the Google button doesn't render.
+        VITE_GOOGLE_CLIENT_ID: "${VITE_GOOGLE_CLIENT_ID:-}"
+    ports:
+      # Loopback only — cloudflared connects here from the same host.
+      - "127.0.0.1:8080:80"
+    depends_on:
+      api:
+        # nginx resolves the `api` hostname when it starts and fails hard if it
+        # can't, so wait for the backend's HEALTHCHECK (see backend/Dockerfile)
+        # rather than just for its container to exist.
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  # Named volume, so `docker compose down` (and image rebuilds) never touch the
+  # database. This is the only piece of state in the stack.
+  cf-data:

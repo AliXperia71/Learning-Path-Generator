@@ -24,9 +24,11 @@ export default function LoadingScreen({ title, steps }) {
 
       {/* Concentric ring spinner with a pulsing energy core */}
       <div className="relative w-20 h-20 mb-6">
-        <div className="absolute inset-0 rounded-full border-2 border-line border-t-neutral-900 dark:border-t-white animate-spin"></div>
-        <div className="absolute inset-2.5 rounded-full border-2 border-line border-b-blue-600 cf-spin-reverse"></div>
-        <div className="absolute inset-0 flex items-center justify-center text-blue-600 cf-pulse-core">
+        {/* Outer ring in the brand navy, inner ring in the logo's ember — the
+            two colours of the mark, counter-rotating. */}
+        <div className="absolute inset-0 rounded-full border-2 border-line border-t-brand animate-spin"></div>
+        <div className="absolute inset-2.5 rounded-full border-2 border-line border-b-ember cf-spin-reverse"></div>
+        <div className="absolute inset-0 flex items-center justify-center text-accent cf-pulse-core">
           <Zap size={20} fill="currentColor" />
         </div>
       </div>
@@ -48,7 +50,7 @@ export default function LoadingScreen({ title, steps }) {
             ) : (
               <span
                 className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ${
-                  i === stepIndex ? 'border-blue-600 cf-pulse-core' : 'border-line'
+                  i === stepIndex ? 'border-accent cf-pulse-core' : 'border-line'
                 }`}
               ></span>
             )}
@@ -61,7 +63,7 @@ export default function LoadingScreen({ title, steps }) {
       {/* Shimmering progress bar */}
       <div className="w-full max-w-xs h-1.5 bg-surface rounded-full overflow-hidden">
         <div
-          className="h-full rounded-full bg-neutral-900 dark:bg-white cf-shimmer transition-all duration-1000 ease-out"
+          className="h-full rounded-full bg-brand cf-shimmer transition-all duration-1000 ease-out"
           style={{ width: `${progress}%` }}
         ></div>
       </div>

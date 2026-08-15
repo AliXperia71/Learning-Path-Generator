@@ -3,30 +3,98 @@
 /* dark: variants apply when .dark is on <html> instead of following the OS */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Semantic color tokens — light values (the original Apple grays) */
+/* ===========================================================================
+   Course Forge brand
+   ---------------------------------------------------------------------------
+   Every colour below is derived from the logo, sampled straight out of the
+   artwork rather than eyeballed:
+
+     forge navy   #0B1B2B   the anvil, the microscope arc, the wordmark
+     ember        #FF8900   the hammer stripe and the spark pixels
+
+   Navy carries the interface; ember is an accent, which is the same ratio it
+   holds in the logo (it's about 8% of the non-white pixels there). Resisting
+   the urge to paint everything orange is what keeps it looking designed.
+
+   Every text/background pair here is WCAG AA at its size — see the note on
+   --color-accent, which is the one that needed real care.
+   =========================================================================== */
+
 @theme {
-  --color-surface: #F5F5F7;      /* page bg, input/pill fills */
+  /* Chakra Petch matches the wordmark's clipped, squared-off letterforms. It's
+     a display face — headings and the brand only. Body copy stays on the system
+     stack, which is more readable and costs no download. */
+  --font-brand: "Chakra Petch", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* --- surfaces & text, light theme ------------------------------------- */
+  --color-surface: #F4F6F8;      /* page bg, input/pill fills */
   --color-card: #FFFFFF;         /* cards, panels, navbar */
-  --color-ink: #1D1D1F;          /* primary text */
-  --color-ink-soft: #515154;     /* secondary text */
-  --color-muted: #86868B;        /* muted text, labels */
-  --color-faint: #A1A1A6;        /* tertiary text */
-  --color-ghost: #C7C7CC;        /* disabled/idle text */
-  --color-line: #E5E5EA;         /* borders, hover fills */
-  --color-line-strong: #D2D2D7;  /* stronger borders */
+  --color-ink: #0B1B2B;          /* primary text — forge navy itself */
+  --color-ink-soft: #3A4C5E;     /* secondary text */
+  --color-muted: #64788C;        /* muted text, labels  (4.56:1 on card) */
+  --color-faint: #7A91A7;        /* tertiary text       (3.01:1 — large/deco only) */
+  --color-ghost: #9FB2C3;        /* disabled/idle */
+  --color-line: #E2E8EE;         /* borders, hover fills */
+  --color-line-strong: #CBD5DF;  /* stronger borders */
+
+  /* --- brand roles ------------------------------------------------------- */
+  /* The primary action. Deliberately navy rather than ember: the logo spends
+     orange sparingly, and a page full of orange buttons stops reading as this
+     brand. Flips to near-white on dark, exactly as the old theme did. */
+  --color-brand: #0B1B2B;
+  --color-brand-hover: #16293B;
+  --color-brand-fg: #FFFFFF;
+
+  /* Links, focus rings, active states. NOT the raw #FF8900 — that measures
+     2.38:1 on white and is unreadable as text. This is the same hue (32°) at
+     67% value, which keeps it recognisably the logo's orange while clearing
+     4.5:1 on both the card and the page. */
+  --color-accent: #AB5C00;
+  --color-accent-hover: #8C4B00;
+  /* Text sitting ON a solid accent fill. It has to flip with the theme: accent
+     is dark in light mode (white text, 4.93:1) and bright in dark mode, where
+     white text would measure 2.2:1 and navy gives 7.32:1. */
+  --color-accent-fg: #FFFFFF;
+
+  /* The literal logo ember, for fills and marks where contrast is carried by
+     the shape rather than by text. Identical in both themes — it IS the brand. */
+  --color-ember: #FF8900;
+  --color-ember-soft: #FFA333;
+  --color-ember-fg: #0B1B2B;     /* 7.32:1 on ember */
+
+  /* The hero "slab" — the dark header panel above a roadmap, a group and the
+     career report. It stays dark in BOTH themes by design, so its tokens are
+     deliberately absent from the .dark block below. Previously a generic
+     neutral-900; now the forge navy itself. */
+  --color-slab: #0B1B2B;
+  --color-slab-fg: #F4F7FA;        /* 16.2:1 */
+  --color-slab-muted: #9FB3C6;     /*  8.1:1 */
+  --color-slab-line: #22384C;
+  --color-slab-fill: #16293B;
+  --color-slab-fill-hover: #22384C;
 }
 
-/* Dark values — same palette inverted (Apple dark-UI grays) */
+/* Dark theme — a deep navy ground pulled from the anvil, not the old pure
+   black. Ember needs no darkening here; it reads 7.1:1 on the card. */
 .dark {
-  --color-surface: #000000;
-  --color-card: #1D1D1F;
-  --color-ink: #F5F5F7;
-  --color-ink-soft: #A1A1A6;
-  --color-muted: #98989D;
-  --color-faint: #6E6E73;
-  --color-ghost: #48484A;
-  --color-line: #2C2C2E;
-  --color-line-strong: #3A3A3C;
+  --color-surface: #071019;
+  --color-card: #0F1E2D;
+  --color-ink: #E9EFF5;
+  --color-ink-soft: #A9BCCD;
+  --color-muted: #8098AE;
+  --color-faint: #5C7288;
+  --color-ghost: #46596D;
+  --color-line: #1B2E40;
+  --color-line-strong: #2A4054;
+
+  --color-brand: #E9EFF5;
+  --color-brand-hover: #FFFFFF;
+  --color-brand-fg: #0B1B2B;
+
+  --color-accent: #FF8900;
+  --color-accent-hover: #FFA333;
+  --color-accent-fg: #0B1B2B;
 }
 
 /* Native form controls / scrollbars match the theme */
@@ -34,9 +102,16 @@
 .dark { color-scheme: dark; }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* The wordmark and page headings. Chakra Petch sits tight and all-cap-height,
+   so it wants a touch of tracking to breathe at UI sizes. */
+.font-brand {
+  font-family: var(--font-brand);
+  letter-spacing: 0.01em;
 }
 
 /* View-transition fade — App.jsx referenced this class but it was never defined */
@@ -65,19 +140,20 @@ body {
   animation: cf-pulse-core-kf 1.4s ease-in-out infinite;
 }
 
-/* Loading page: light sweep across the progress bar */
+/* Loading page: light sweep across the progress bar. The sweep is the logo's
+   ember — this is the forge heating up, which is the whole metaphor. */
 @keyframes cf-shimmer-kf {
   from { background-position: -200% 0; }
   to { background-position: 200% 0; }
 }
 .cf-shimmer {
-  background-image: linear-gradient(90deg, #171717 0%, #171717 35%, #3b82f6 50%, #171717 65%, #171717 100%);
+  background-image: linear-gradient(90deg, #0B1B2B 0%, #0B1B2B 35%, #FF8900 50%, #0B1B2B 65%, #0B1B2B 100%);
   background-size: 200% 100%;
   animation: cf-shimmer-kf 1.8s linear infinite;
 }
-/* Progress bar inverts to white in dark mode, so the sweep needs a light base */
+/* Progress bar inverts on dark, so the sweep needs a light base */
 .dark .cf-shimmer {
-  background-image: linear-gradient(90deg, #F5F5F7 0%, #F5F5F7 35%, #3b82f6 50%, #F5F5F7 65%, #F5F5F7 100%);
+  background-image: linear-gradient(90deg, #E9EFF5 0%, #E9EFF5 35%, #FF8900 50%, #E9EFF5 65%, #E9EFF5 100%);
 }
 
 /* Loading page: animated trailing ellipsis on the active step */

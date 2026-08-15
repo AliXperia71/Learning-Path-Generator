@@ -33,9 +33,19 @@ import CareerReport from './components/CareerReport';
 import GroupSkills from './components/GroupSkills';
 import ProfileSettings from './components/ProfileSettings';
 import GoogleSignInButton from './components/GoogleSignInButton';
+import LandingModal from './components/LandingModal';
+import Logo from './components/Logo';
 import { downloadRoadmapMarkdown, printRoadmapPdf } from './utils/roadmapExport';
 
-const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+// `??`, not `||`: an empty string is a meaningful value here — it means
+// same-origin, which is how the Docker build runs (nginx proxies /api to the
+// backend). `||` would treat "" as unset and send every call to 127.0.0.1.
+// Unset (plain `npm run dev`) still falls through to the local backend.
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000';
+
+// Set once the user clicks "Do not show again" on the landing pop-up. Plain
+// "Close" leaves it unset, so the page returns on the next sign-in.
+const LANDING_HIDDEN_KEY = 'cf_landing_hidden';
 
 // Google sign-in is opt-in: without a client ID the button and its divider are
 // left out entirely rather than rendering something that can't work.
@@ -105,6 +115,15 @@ export default function App() {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
     localStorage.setItem('cf_theme', next);
+  };
+
+  // "About Course Forge" pop-up — opened automatically on sign-in, and on demand
+  // from the link above the sign-in card
+  const [showLanding, setShowLanding] = useState(false);
+  const closeLanding = () => setShowLanding(false);
+  const neverShowLanding = () => {
+    localStorage.setItem(LANDING_HIDDEN_KEY, '1');
+    setShowLanding(false);
   };
 
   // Input Form States
@@ -195,6 +214,30 @@ export default function App() {
     }
   };
 
+  // Clear everything handleLoadPath filled in, so the prompt page is a blank
+  // compose surface rather than the last path's leftovers.
+  //
+  // roadmapData has to go too, not just the view: CareerReport's back button
+  // reads `roadmapData ? 'roadmap' : 'prompt'`, so a stale roadmap would
+  // resurrect itself the moment you visited Career Boost and came back.
+  //
+  // experienceLevel and hoursPerDay deliberately survive — they read as
+  // settings you carry between generations, not as part of one path.
+  const clearActivePath = () => {
+    setGoal('');
+    setRoadmapData(null);
+    setActivePathId(null);
+    setActiveQuiz(null);
+    setQuizResult(null);
+    setViewState('prompt');
+  };
+
+  // The button form. The guard belongs here, not in clearActivePath — deleting
+  // the open path must always reset, whatever else is in flight.
+  const startNewPath = () => {
+    if (!isBusy) clearActivePath();
+  };
+
   // Action: Delete a saved session
   const handleDeletePath = async (e, pathId) => {
     e.stopPropagation(); // don't also trigger the row's load handler
@@ -202,11 +245,9 @@ export default function App() {
     try {
       await authFetch(`${BACKEND_URL}/api/paths/${pathId}`, { method: 'DELETE' });
       setSavedPaths(savedPaths.filter((p) => p.id !== pathId));
-      if (pathId === activePathId) {
-        setActivePathId(null);
-        setRoadmapData(null);
-        setViewState('prompt');
-      }
+      // Deleting the path you're looking at leaves the same stale prompt text
+      // behind as "+ New Path" used to, so it gets the same clean reset.
+      if (pathId === activePathId) clearActivePath();
     } catch {
       alert('Failed to delete the session.');
     }
@@ -222,6 +263,13 @@ export default function App() {
     setAuthPassword('');
     // Strip ?reset=... so a refresh doesn't drop back into the reset form
     window.history.replaceState({}, '', window.location.pathname);
+
+    // Meet the user with the landing page on sign-in. This lives here rather
+    // than in an effect on authToken because that token is rehydrated from
+    // localStorage on mount — an effect would fire on every page refresh of an
+    // existing session, not on an actual sign-in. startSession runs exactly
+    // once per login and already covers password, register and Google.
+    if (localStorage.getItem(LANDING_HIDDEN_KEY) !== '1') setShowLanding(true);
   };
 
   // Action: Register or log in, then persist the session token
@@ -488,7 +536,7 @@ export default function App() {
   // =========================================================================
   if (!authToken) {
     const fieldClass =
-      'w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-card text-sm transition-all font-medium placeholder-muted/70';
+      'w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-accent focus:bg-card text-sm transition-all font-medium placeholder-muted/70';
     const labelClass = 'block text-xs font-semibold text-muted mb-2';
 
     // One card, four modes — the heading and form body swap, the chrome doesn't
@@ -501,13 +549,26 @@ export default function App() {
     const heading = headings[authMode];
 
     return (
-      <div className="bg-surface text-ink min-h-screen flex items-center justify-center font-sans p-4">
+      // flex-col so the About link stacks above the card instead of beside it
+      <div className="bg-surface text-ink min-h-screen flex flex-col items-center justify-center font-sans p-4">
+        {showLanding && (
+          <LandingModal theme={theme} onClose={closeLanding} onNeverShow={neverShowLanding} />
+        )}
+
+        <button
+          type="button"
+          onClick={() => setShowLanding(true)}
+          className="mb-4 text-xs text-accent font-semibold hover:underline cursor-pointer"
+        >
+          About CourseForge
+        </button>
+
         <div className="bg-card border border-line rounded-2xl p-8 w-full max-w-sm shadow-[0_4px_24px_rgba(0,0,0,0.04)] space-y-6">
           <div className="text-center space-y-2">
-            <div className="bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 p-2.5 rounded-xl inline-flex">
-              <Layers size={22} className="stroke-[2.2]" />
-            </div>
-            <h1 className="text-lg font-semibold tracking-tight">{heading.title}</h1>
+            {/* The full lockup, not a tile — sign-in is the one screen with room
+                for the wordmark, and it's the first thing a new user sees. */}
+            <Logo theme={theme} variant="full" className="h-24 w-auto mx-auto mb-1" />
+            <h1 className="font-brand text-lg font-bold tracking-tight">{heading.title}</h1>
             <p className="text-xs text-muted font-medium">{heading.sub}</p>
           </div>
 
@@ -537,7 +598,7 @@ export default function App() {
                 <button
                   type="submit"
                   disabled={authLoading}
-                  className="w-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 text-sm"
+                  className="w-full bg-brand hover:bg-brand-hover text-brand-fg disabled:opacity-50 font-medium py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 text-sm"
                 >
                   <Mail size={14} /> {authLoading ? 'Sending...' : 'Send recovery email'}
                 </button>
@@ -548,7 +609,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => switchAuthMode('login')}
-                  className="text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
+                  className="text-accent font-semibold hover:underline cursor-pointer"
                 >
                   Back to sign in
                 </button>
@@ -580,7 +641,7 @@ export default function App() {
                 <button
                   type="submit"
                   disabled={authLoading}
-                  className="w-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 text-sm"
+                  className="w-full bg-brand hover:bg-brand-hover text-brand-fg disabled:opacity-50 font-medium py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 text-sm"
                 >
                   <KeyRound size={14} /> {authLoading ? 'Saving...' : 'Set new password'}
                 </button>
@@ -590,7 +651,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => switchAuthMode('login')}
-                  className="text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
+                  className="text-accent font-semibold hover:underline cursor-pointer"
                 >
                   Back to sign in
                 </button>
@@ -670,7 +731,7 @@ export default function App() {
                 <button
                   type="submit"
                   disabled={authLoading}
-                  className="w-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 text-sm"
+                  className="w-full bg-brand hover:bg-brand-hover text-brand-fg disabled:opacity-50 font-medium py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 text-sm"
                 >
                   <Lock size={14} /> {authLoading ? 'Please wait...' : authMode === 'login' ? 'Sign In' : 'Create Account'}
                 </button>
@@ -703,7 +764,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => switchAuthMode(authMode === 'login' ? 'register' : 'login')}
-                  className="text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
+                  className="text-accent font-semibold hover:underline cursor-pointer"
                 >
                   {authMode === 'login' ? 'Sign up' : 'Sign in'}
                 </button>
@@ -734,7 +795,7 @@ export default function App() {
             required
             disabled={isBusy}
             placeholder="e.g., Python backend development with FastAPI, building relational SQL databases, and setting up Docker container systems..."
-            className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-card text-sm transition-all resize-none placeholder-muted/70 font-medium disabled:opacity-50"
+            className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-accent focus:bg-card text-sm transition-all resize-none placeholder-muted/70 font-medium disabled:opacity-50"
           />
         </div>
 
@@ -765,7 +826,7 @@ export default function App() {
                 CHANGED: UI label and slider constraints updated to manage Daily Commitment
                 ========================================================================= */}
             <label className="block text-xs font-semibold text-muted">DAILY TIME COMMITMENT</label>
-            <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{hoursPerDay} hrs/day</span>
+            <span className="text-xs font-bold text-accent">{hoursPerDay} hrs/day</span>
           </div>
           <input
             type="range"
@@ -774,14 +835,14 @@ export default function App() {
             value={hoursPerDay}
             disabled={isBusy}
             onChange={(e) => setHoursPerDay(parseInt(e.target.value))}
-            className="w-full h-1 bg-line rounded-lg appearance-none cursor-pointer accent-blue-600 disabled:opacity-50"
+            className="w-full h-1 bg-line rounded-lg appearance-none cursor-pointer accent-ember disabled:opacity-50"
           />
         </div>
 
         <button
           type="submit"
           disabled={isBusy}
-          className="w-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 rounded-xl transition-all shadow-md shadow-neutral-900/10 cursor-pointer flex items-center justify-center gap-2 text-sm"
+          className="w-full bg-brand hover:bg-brand-hover text-brand-fg disabled:opacity-50 disabled:cursor-not-allowed font-medium py-3 rounded-xl transition-all shadow-md shadow-ink/10 cursor-pointer flex items-center justify-center gap-2 text-sm"
         >
           <Sparkles size={16} /> {isBusy ? 'Generating...' : 'Generate Roadmap'}
         </button>
@@ -814,7 +875,7 @@ export default function App() {
           type="button"
           onClick={handleAnalyzeResume}
           disabled={!resumeFile || isBusy}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium px-4 py-3 rounded-xl transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 text-xs"
+          className="bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-accent-fg font-medium px-4 py-3 rounded-xl transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 text-xs"
         >
           <ScanSearch size={14} /> Scan Resume
         </button>
@@ -834,8 +895,8 @@ export default function App() {
         </h2>
         {viewState !== 'prompt' && (
           <button
-            onClick={() => !isBusy && setViewState('prompt')}
-            className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer inline-flex items-center gap-0.5"
+            onClick={startNewPath}
+            className="text-[11px] font-semibold text-accent hover:underline cursor-pointer inline-flex items-center gap-0.5"
           >
             <Plus size={12} /> New Path
           </button>
@@ -848,7 +909,7 @@ export default function App() {
             onClick={() => handleLoadPath(p.id)}
             className={`group flex items-center justify-between gap-2 p-2.5 rounded-xl cursor-pointer border text-xs font-medium transition-all ${
               p.id === activePathId
-                ? 'bg-blue-50/50 dark:bg-blue-500/10 border-blue-500/40 text-blue-900 dark:text-blue-300'
+                ? 'bg-ember/10 dark:bg-ember/15 border-accent/40 text-accent dark:text-ember-soft'
                 : 'bg-surface border-transparent hover:bg-line/60 text-ink-soft'
             }`}
           >
@@ -872,7 +933,12 @@ export default function App() {
   );
 
   return (
-    <div className="bg-surface text-ink min-h-screen flex flex-col font-sans selection:bg-blue-500/20">
+    <div className="bg-surface text-ink min-h-screen flex flex-col font-sans selection:bg-ember/25">
+
+      {/* Opens itself right after sign-in unless the user has switched it off */}
+      {showLanding && (
+        <LandingModal theme={theme} onClose={closeLanding} onNeverShow={neverShowLanding} />
+      )}
 
       {/* Premium Apple-Style Glassmorphism Navbar */}
       <header className="sticky top-0 z-50 bg-card/70 backdrop-blur-md border-b border-line-strong/30 px-6 py-4">
@@ -883,12 +949,11 @@ export default function App() {
             title="New path / Career Boost"
             className="flex items-center gap-2.5 cursor-pointer text-left"
           >
-            <div className="bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 p-2 rounded-xl shadow-xs">
-              <Layers size={20} className="stroke-[2.2]" />
-            </div>
+            {/* The mark carries itself — no tile behind it. */}
+            <Logo theme={theme} className="h-9 w-auto shrink-0" />
             <div>
-              <h1 className="text-base font-semibold tracking-tight text-ink">Course Forge</h1>
-              <p className="text-[10px] text-muted font-medium tracking-wide uppercase">AI Systems</p>
+              <h1 className="font-brand text-base font-bold tracking-tight text-ink leading-none">CourseForge</h1>
+              <p className="text-[10px] text-muted font-medium tracking-wide uppercase mt-1">AI Systems</p>
             </div>
           </button>
           
@@ -900,7 +965,7 @@ export default function App() {
               title="Group Skills"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border ${
                 viewState === 'groups'
-                  ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 border-neutral-900 dark:border-white'
+                  ? 'bg-brand text-brand-fg border-brand'
                   : 'bg-surface text-ink-soft border-transparent hover:bg-line'
               }`}
             >
@@ -912,7 +977,7 @@ export default function App() {
               title="Profile settings"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border max-w-[180px] ${
                 viewState === 'profile'
-                  ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 border-neutral-900 dark:border-white'
+                  ? 'bg-brand text-brand-fg border-brand'
                   : 'bg-surface text-ink-soft border-transparent hover:bg-line'
               }`}
             >
@@ -945,8 +1010,8 @@ export default function App() {
       {viewState === 'prompt' && (
         <main className="flex-1 w-full max-w-xl mx-auto px-4 py-12 space-y-5 animate-fadeIn">
           <div className="text-center space-y-1.5 mb-8">
-            <h2 className="text-2xl font-semibold tracking-tight text-ink">What do you want to master?</h2>
-            <p className="text-xs text-muted font-medium">Describe your goal and Course Forge will architect a week-by-week blueprint.</p>
+            <h2 className="font-brand text-2xl font-bold tracking-tight text-ink">What do you want to master?</h2>
+            <p className="text-xs text-muted font-medium">Describe your goal and CourseForge will architect a week-by-week blueprint.</p>
           </div>
           {parametersCard}
           {careerBoostCard}
@@ -1010,33 +1075,33 @@ export default function App() {
             {/* View Container: Beautiful Dynamic Roadmap Stream */}
             {viewState === 'roadmap' && roadmapData && (
             <div className="space-y-6 animate-fadeIn">
-              <div className="bg-neutral-900 p-6 rounded-2xl text-white shadow-xs relative overflow-hidden">
+              <div className="bg-slab p-6 rounded-2xl text-slab-fg shadow-xs relative overflow-hidden">
                 {/* NEW: Export controls — save the roadmap as PDF or Markdown */}
                 <div className="absolute top-5 right-5 flex gap-1.5">
                   <button
                     onClick={() => printRoadmapPdf(roadmapData, exportMeta)}
                     title="Download as PDF"
-                    className="text-neutral-400 hover:text-white p-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-all cursor-pointer"
+                    className="text-slab-muted hover:text-slab-fg p-2 bg-slab-fill hover:bg-slab-fill-hover rounded-lg transition-all cursor-pointer"
                   >
                     <Download size={14} />
                   </button>
                   <button
                     onClick={() => downloadRoadmapMarkdown(roadmapData, exportMeta)}
                     title="Download as Markdown"
-                    className="text-neutral-400 hover:text-white p-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-all cursor-pointer"
+                    className="text-slab-muted hover:text-slab-fg p-2 bg-slab-fill hover:bg-slab-fill-hover rounded-lg transition-all cursor-pointer"
                   >
                     <FileText size={14} />
                   </button>
                 </div>
-                <span className="text-[10px] font-bold tracking-widest text-blue-400 uppercase">Target Blueprint</span>
+                <span className="text-[10px] font-bold tracking-widest text-ember uppercase">Target Blueprint</span>
                 {/* =========================================================================
                     CHANGED: Extracted backend data nodes (`title` and `calculated_total_weeks`)
                     ========================================================================= */}
-                <h2 className="text-lg font-semibold mt-1 tracking-tight pr-24">{roadmapData.title}</h2>
-                <div className="flex flex-wrap gap-5 mt-4 text-[11px] text-neutral-400 font-medium border-t border-neutral-800 pt-4">
-                  <div className="flex items-center gap-1.5 text-neutral-400"><Layers size={13} /> Level: <span className="text-white capitalize font-semibold">{experienceLevel}</span></div>
-                  <div className="flex items-center gap-1.5 text-neutral-400"><Clock size={13} /> Commitment: <span className="text-white font-semibold">{hoursPerDay} hrs/day</span></div>
-                  <div className="flex items-center gap-1.5 text-neutral-400"><Calendar size={13} /> Duration: <span className="text-white font-semibold">{roadmapData.calculated_total_weeks} Weeks</span></div>
+                <h2 className="font-brand text-lg font-bold mt-1 tracking-tight pr-24">{roadmapData.title}</h2>
+                <div className="flex flex-wrap gap-5 mt-4 text-[11px] text-slab-muted font-medium border-t border-slab-line pt-4">
+                  <div className="flex items-center gap-1.5 text-slab-muted"><Layers size={13} /> Level: <span className="text-slab-fg capitalize font-semibold">{experienceLevel}</span></div>
+                  <div className="flex items-center gap-1.5 text-slab-muted"><Clock size={13} /> Commitment: <span className="text-slab-fg font-semibold">{hoursPerDay} hrs/day</span></div>
+                  <div className="flex items-center gap-1.5 text-slab-muted"><Calendar size={13} /> Duration: <span className="text-slab-fg font-semibold">{roadmapData.calculated_total_weeks} Weeks</span></div>
                 </div>
               </div>
 
@@ -1089,7 +1154,7 @@ export default function App() {
                               href={res.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-2.5 p-2.5 bg-surface hover:bg-line/60 border border-line/50 rounded-xl text-xs font-medium text-ink transition-all hover:text-blue-600 dark:hover:text-blue-400 group"
+                              className="flex items-center gap-2.5 p-2.5 bg-surface hover:bg-line/60 border border-line/50 rounded-xl text-xs font-medium text-ink transition-all hover:text-accent group"
                             >
                               <div className="bg-red-500/10 text-red-600 dark:text-red-400 p-1.5 rounded-lg shrink-0 group-hover:bg-red-500 group-hover:text-white transition-all">
                                 <Video size={13} />
@@ -1119,8 +1184,8 @@ export default function App() {
                         NEW: Comprehensive Weekly Assessment Assignment Metric Card Block
                         ========================================================================= */}
                     {wk.mini_exercise && (
-                      <p className="text-[11px] text-muted leading-relaxed bg-blue-500/5 border border-blue-500/10 p-3 rounded-xl font-medium">
-                        <span className="font-semibold text-blue-700 dark:text-blue-400 inline-flex items-center gap-0.5">
+                      <p className="text-[11px] text-ink-soft leading-relaxed bg-ember/5 border border-accent/20 p-3 rounded-xl font-medium">
+                        <span className="font-semibold text-accent dark:text-ember inline-flex items-center gap-0.5">
                           <Flag size={11} /> Milestone Capstone Assignment:
                         </span>{' '}
                         {wk.mini_exercise}
@@ -1140,7 +1205,7 @@ export default function App() {
               {/* Header Context Bar */}
               <div className="flex items-center justify-between border-b border-surface pb-4">
                 <div>
-                  <span className="text-[10px] font-bold tracking-wider text-blue-600 dark:text-blue-400 uppercase">Week {activeQuiz.week_number} Evaluation</span>
+                  <span className="text-[10px] font-bold tracking-wider text-accent uppercase">Week {activeQuiz.week_number} Evaluation</span>
                   <h3 className="text-base font-semibold text-ink tracking-tight">{activeQuiz.milestone}</h3>
                 </div>
                 <button
@@ -1157,7 +1222,7 @@ export default function App() {
                   {activeQuiz.questions?.map((q) => (
                     <div key={q.question_number} className="space-y-3 border-b border-surface pb-5 last:border-0 last:pb-0">
                       <h4 className="text-sm font-semibold text-ink flex items-start gap-1.5 leading-snug">
-                        <span className="text-faint font-mono text-xs mt-0.5">{q.question_number}.</span>
+                        <span className="text-muted font-mono text-xs mt-0.5">{q.question_number}.</span>
                         {q.question}
                       </h4>
 
@@ -1168,7 +1233,7 @@ export default function App() {
                               key={oIdx}
                               className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border text-xs font-medium transition-all ${
                                 quizAnswers[q.question_number] === opt
-                                  ? 'bg-blue-50/50 dark:bg-blue-500/10 border-blue-500 text-blue-900 dark:text-blue-300'
+                                  ? 'bg-ember/10 dark:bg-ember/15 border-accent text-accent dark:text-ember-soft'
                                   : 'bg-surface border-transparent hover:bg-line/60 text-ink-soft'
                               }`}
                             >
@@ -1179,7 +1244,7 @@ export default function App() {
                                 checked={quizAnswers[q.question_number] === opt}
                                 onChange={() => setQuizAnswers({ ...quizAnswers, [q.question_number]: opt })}
                                 required
-                                className="accent-blue-600 h-3.5 w-3.5"
+                                className="accent-ember h-3.5 w-3.5"
                               />
                               {opt}
                             </label>
@@ -1192,12 +1257,12 @@ export default function App() {
                           value={quizAnswers[q.question_number] || ''}
                           onChange={(e) => setQuizAnswers({ ...quizAnswers, [q.question_number]: e.target.value })}
                           placeholder="Provide your text evaluation breakdown response..."
-                          className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-blue-500 focus:bg-card text-xs font-medium transition-all resize-none placeholder-muted/60"
+                          className="w-full p-3 bg-surface border border-transparent rounded-xl focus:outline-hidden focus:border-accent focus:bg-card text-xs font-medium transition-all resize-none placeholder-muted/60"
                         />
                       )}
                     </div>
                   ))}
-                  <button type="submit" className="bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 text-white font-medium text-xs px-5 py-3 rounded-xl transition-all cursor-pointer">
+                  <button type="submit" className="bg-brand hover:bg-brand-hover text-brand-fg font-medium text-xs px-5 py-3 rounded-xl transition-all cursor-pointer">
                     Submit Evaluation
                   </button>
                 </form>
@@ -1245,7 +1310,7 @@ export default function App() {
 
                   <button
                     onClick={() => setViewState('roadmap')}
-                    className="w-full bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 dark:text-neutral-900 text-white font-medium p-3 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    className="w-full bg-brand hover:bg-brand-hover text-brand-fg font-medium p-3 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <RotateCcw size={14} /> Return to Roadmap Overview
                   </button>
