@@ -117,14 +117,25 @@ export default function App() {
     localStorage.setItem('cf_theme', next);
   };
 
-  // "About Course Forge" pop-up — opened automatically on sign-in, and on demand
-  // from the link above the sign-in card
+  // "About CourseForge" pop-up — opened automatically for signed-out visitors,
+  // and on demand from the link above the sign-in card
   const [showLanding, setShowLanding] = useState(false);
   const closeLanding = () => setShowLanding(false);
   const neverShowLanding = () => {
     localStorage.setItem(LANDING_HIDDEN_KEY, '1');
     setShowLanding(false);
   };
+
+  // Show a first-time visitor what CourseForge is before asking them to sign up.
+  // Mount-only on purpose: authToken is lazily rehydrated from localStorage on
+  // the first render, so an already-signed-in user returning to the tab is
+  // recognised here and never interrupted. "Do not show again" is permanent;
+  // plain "Close" lets it return on a later visit.
+  useEffect(() => {
+    if (localStorage.getItem('cf_token')) return;
+    if (localStorage.getItem(LANDING_HIDDEN_KEY) === '1') return;
+    setShowLanding(true);
+  }, []);
 
   // Input Form States
   const [goal, setGoal] = useState('');
@@ -264,12 +275,10 @@ export default function App() {
     // Strip ?reset=... so a refresh doesn't drop back into the reset form
     window.history.replaceState({}, '', window.location.pathname);
 
-    // Meet the user with the landing page on sign-in. This lives here rather
-    // than in an effect on authToken because that token is rehydrated from
-    // localStorage on mount — an effect would fire on every page refresh of an
-    // existing session, not on an actual sign-in. startSession runs exactly
-    // once per login and already covers password, register and Google.
-    if (localStorage.getItem(LANDING_HIDDEN_KEY) !== '1') setShowLanding(true);
+    // The landing page deliberately does NOT open here. A visitor should see
+    // what CourseForge is *before* being asked to make an account, so the
+    // trigger lives in a mount effect gated on being signed out — see above.
+    setShowLanding(false);
   };
 
   // Action: Register or log in, then persist the session token

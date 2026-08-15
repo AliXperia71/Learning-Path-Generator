@@ -101,6 +101,21 @@
 :root { color-scheme: light; }
 .dark { color-scheme: dark; }
 
+/* Google Identity Services renders its button inside a cross-origin iframe that
+   is larger than the button it contains — measured 2026-08-15 on the live site:
+   Google's own button box is 300x40, the iframe is 320x44. Google never paints
+   that extra margin, so the browser fills it with its default white, producing a
+   white halo around the dark button.
+   `color-scheme: dark` on <html> can't fix this: it doesn't cross an origin
+   boundary, which is why the halo appeared identically in Chrome, Safari and
+   Brave. We can't reach inside a cross-origin iframe either — but Google's
+   300x40 box is the button's true size, so clipping the overflow to it hides the
+   halo and leaves the button itself untouched. */
+.gis-button > div {
+  overflow: hidden;
+  border-radius: 9999px;   /* renderButton uses shape: 'pill' */
+}
+
 body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;

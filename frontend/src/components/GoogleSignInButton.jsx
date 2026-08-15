@@ -68,5 +68,6 @@ export default function GoogleSignInButton({ onCredential, theme }) {
 
   if (!CLIENT_ID) return null;
 
-  return <div ref={containerRef} className="flex justify-center" />;
+  // gis-button: see index.css — clips the white halo Google's iframe paints.
+  return <div ref={containerRef} className="gis-button flex justify-center" />;
 }
