@@ -53,7 +53,9 @@ def join_group(user_id: int, invite_code: str) -> dict:
     """Adds the user to a group by invite code. Raises ValueError on any failure condition."""
     with get_db() as conn:
         group = conn.execute(
-            text("SELECT * FROM groups WHERE invite_code = :c"), {"c": invite_code.strip()}
+            # Codes are lowercase hex; lowering the input means a phone keyboard
+            # that auto-capitalizes the first letter can't make a valid code fail
+            text("SELECT * FROM groups WHERE invite_code = :c"), {"c": invite_code.strip().lower()}
         ).mappings().first()
         if group is None:
             raise ValueError("Invalid invite code.")
