@@ -6,16 +6,91 @@ from sqlalchemy import text
 from services.ai_service import azure_chat_json
 from services.database import get_db, quiz_attempts
 
-# Local Ollama handles quizzes by default (free, low latency); Azure OpenAI is the
-# automatic fallback when Ollama is unreachable — e.g. on an Azure deployment with no local model.
+# Azure OpenAI generates quizzes; a small local Ollama model is only the fallback
+# when Azure fails. It was the other way round until 2026-09-18, which loaded the
+# 6.6 GB qwen3.5:9b on every local quiz and nearly froze a MacBook. 2b is small
+# enough to run alongside everything else. On the Veriton, OLLAMA_HOST is unset,
+# so it points at localhost *inside the api container* where nothing listens:
+# production is effectively Azure-only on purpose. A CPU-only model on that box
+# could outlast Cloudflare's 100s edge timeout.
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-QUIZ_MODEL = os.getenv("QUIZ_MODEL", "qwen3.5:9b")
+QUIZ_MODEL = os.getenv("QUIZ_MODEL", "qwen3.5:2b")
 OLLAMA_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "120"))
+# qwen3.5 advertises a 262K context and Ollama sizes its memory for the whole
+# window: the 2.7 GB model loaded at 5.9 GB. 16K covers the biggest request,
+# grading five answers of up to 5,000 chars each, and stays near the file size.
+OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "16384"))
+# Fallback use is rare, so free the memory soon after instead of Ollama's 5 min
+OLLAMA_KEEP_ALIVE = os.getenv("OLLAMA_KEEP_ALIVE", "1m")
 
 PASS_THRESHOLD = 0.6  # fraction of total points needed to pass
 
 
-def _call_ollama(system_prompt: str, user_prompt: str) -> dict:
+# JSON Schemas for Ollama structured outputs. Ollama constrains decoding to the
+# schema, so the model *cannot* return the wrong number or shape of questions.
+# Plain "json" mode left qwen3.5:2b at 2/5 valid quizzes (it returned 3, 4 or 6
+# questions). Azure follows the prompt reliably and doesn't need them.
+_MCQ = {
+    "type": "object",
+    "properties": {
+        "question_number": {"type": "integer"},
+        "type": {"type": "string", "enum": ["multiple_choice"]},
+        "question": {"type": "string"},
+        "options": {"type": "array", "items": {"type": "string"}, "minItems": 4, "maxItems": 4},
+        # An index, not the text: asked for the text, qwen3.5:2b wrote an answer
+        # key matching none of its own options in ~half of questions, which made
+        # them impossible to get right. generate_quiz maps it back to the text.
+        "correct_option": {"type": "integer", "enum": [0, 1, 2, 3]},
+    },
+    "required": ["question_number", "type", "question", "options", "correct_option"],
+}
+_OPEN = {
+    "type": "object",
+    "properties": {
+        "question_number": {"type": "integer"},
+        "type": {"type": "string", "enum": ["open_ended"]},
+        "question": {"type": "string"},
+    },
+    "required": ["question_number", "type", "question"],
+}
+QUIZ_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "questions": {
+            "type": "array",
+            "prefixItems": [_MCQ, _MCQ, _MCQ, _OPEN, _OPEN],
+            "minItems": 5,
+            "maxItems": 5,
+        }
+    },
+    "required": ["questions"],
+}
+
+
+def _feedback_schema(count: int) -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            "feedback": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "question_number": {"type": "integer"},
+                        "correct": {"type": "boolean"},
+                        "explanation": {"type": "string"},
+                    },
+                    "required": ["question_number", "correct", "explanation"],
+                },
+                "minItems": count,
+                "maxItems": count,
+            }
+        },
+        "required": ["feedback"],
+    }
+
+
+def _call_ollama(system_prompt: str, user_prompt: str, schema: dict | None = None) -> dict:
     response = requests.post(
         f"{OLLAMA_HOST}/api/chat",
         json={
@@ -24,8 +99,13 @@ def _call_ollama(system_prompt: str, user_prompt: str) -> dict:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "format": "json",
+            "format": schema or "json",
             "stream": False,
+            # qwen3.5 is a thinking model; hidden reasoning tokens would add
+            # latency with no benefit to a JSON quiz
+            "think": False,
+            "options": {"num_ctx": OLLAMA_NUM_CTX},
+            "keep_alive": OLLAMA_KEEP_ALIVE,
         },
         timeout=OLLAMA_TIMEOUT_SECONDS,
     )
@@ -40,17 +120,18 @@ def _call_azure(system_prompt: str, user_prompt: str) -> dict:
     ])
 
 
-def _call_llm(system_prompt: str, user_prompt: str) -> dict:
-    """Routes to Ollama first, falls back to Azure OpenAI. Raises RuntimeError if both fail."""
+def _call_llm(system_prompt: str, user_prompt: str, schema: dict | None = None) -> dict:
+    """Routes to Azure OpenAI first, falls back to Ollama (held to `schema` when
+    given). Raises RuntimeError if both fail."""
     try:
-        return _call_ollama(system_prompt, user_prompt)
-    except Exception as ollama_err:
-        print(f"⚠️ Ollama ({QUIZ_MODEL}) unavailable, falling back to Azure OpenAI: {ollama_err}")
+        return _call_azure(system_prompt, user_prompt)
+    except Exception as azure_err:
+        print(f"⚠️ Azure OpenAI failed, falling back to Ollama ({QUIZ_MODEL}): {type(azure_err).__name__}")
         try:
-            return _call_azure(system_prompt, user_prompt)
-        except Exception as azure_err:
+            return _call_ollama(system_prompt, user_prompt, schema)
+        except Exception as ollama_err:
             raise RuntimeError(
-                f"Both quiz models failed. Ollama: {ollama_err} | Azure: {azure_err}"
+                f"Both quiz models failed. Azure: {type(azure_err).__name__} | Ollama: {ollama_err}"
             )
 
 
@@ -79,7 +160,7 @@ def generate_quiz(user_id: int, milestone: str, week_number: int, group_id: int 
         f"The milestone being tested is: '{milestone}'."
     )
 
-    data = _call_llm(system_prompt, user_prompt)
+    data = _call_llm(system_prompt, user_prompt, QUIZ_SCHEMA)
     questions = data.get("questions", [])
     if len(questions) != 5:
         raise RuntimeError(f"Model returned {len(questions)} questions instead of 5.")
@@ -87,6 +168,10 @@ def generate_quiz(user_id: int, milestone: str, week_number: int, group_id: int 
     # Normalize numbering so the frontend's answer map lines up regardless of model quirks
     for i, q in enumerate(questions, start=1):
         q["question_number"] = i
+        # The Ollama fallback returns the answer as an index into options
+        idx = q.pop("correct_option", None)
+        if q.get("type") == "multiple_choice" and isinstance(idx, int) and 0 <= idx < len(q.get("options", [])):
+            q["correct_answer"] = q["options"][idx]
 
     # Stripping and persist
     quiz_id = create_attempt(user_id, milestone, week_number, group_id, questions)
@@ -174,7 +259,7 @@ def _grade_open_ended(milestone: str, submissions: list[dict]) -> list[dict]:
         f"{json.dumps(submissions, indent=2)}"
     )
 
-    data = _call_llm(system_prompt, user_prompt)
+    data = _call_llm(system_prompt, user_prompt, _feedback_schema(len(submissions)))
     graded = data.get("feedback", [])
 
     # If the model dropped a question, count it as ungraded-but-wrong rather than crashing
