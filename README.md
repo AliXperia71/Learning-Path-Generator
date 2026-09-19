@@ -854,20 +854,28 @@ is identical in both, since it's the one colour that reads on either ground.
 Code moves laptop → GitHub → server. The server never has work of its own; it is
 a clean mirror of a remote branch.
 
-### On your laptop
+### Releasing (automatic)
+
+The server tracks a **`production`** branch that only you can push to, and a
+cron job deploys it within five minutes of it moving:
 
 ```bash
-git push origin main        # or wherever the server tracks
+git push origin main:production   # promote main; live in ~5 minutes
 ```
 
-### On the server
+`ops/veriton/cf-autodeploy` polls, runs `deploy.sh -y`, and emails the result.
+A commit that fails the health gate is rolled back and **not retried** until a
+newer one is pushed. See [`ops/README.md`](ops/README.md) for the full behaviour,
+alerts, and how to pause it.
+
+### By hand, on the server
 
 ```bash
-cd /opt/course-forge
+cd ~/apps/course-forge
 ./ops/deploy.sh
 ```
 
-That's the whole workflow. `deploy.sh` does, in order:
+Either way, `deploy.sh` does, in order:
 
 1. **Refuses if the checkout is dirty.** A production tree is a mirror, not a
    workspace.
@@ -921,11 +929,7 @@ git remote set-url --add --push origin git@github.com:AliXperia71/Learning-Path-
 After that `git push origin main` writes to both. (Adding the first push URL
 replaces the implicit default, which is why both lines are needed.)
 
-**Deploying from a shared repo is a deliberate choice.** The server tracks a
-branch other people can merge into, so a teammate's PR is one command away from
-your live domain. `deploy.sh` is manual and shows you the diff precisely so that
-command is never an accident. If that ever stops feeling like enough, point the
-server at a `production` branch you fast-forward yourself.
+**Production deploys from your personal repo, not the shared one.** The server tracks `production` on `AliXperia71/Learning-Path-Generator`, where teammates have no write access, so a merged PR in the team repo can never reach the live domain on its own — it goes live only when you promote it. (If you've set up the two-push-URL trick above, `git push origin main:production` also creates a `production` branch on the team repo. That's harmless: the server doesn't read it.)
 
 ---
 

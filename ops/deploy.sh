@@ -12,8 +12,10 @@
 #   4. If the new build doesn't come up healthy, it rolls the code back and
 #      rebuilds the previous commit automatically.
 #
-# It is deliberately manual. This machine tracks a shared repo, so "someone
-# merged a PR" must never be the same event as "production changed".
+# Run by hand, or every 5 minutes by ~/bin/cf-autodeploy (ops/veriton/), which
+# calls it with -y. The server tracks `production` on the personal repo, which
+# only Ali can push, so "someone merged a PR" is never the same event as
+# "production changed".
 #
 # .env files are gitignored and live only on this machine — `git pull` never
 # touches them.
