@@ -131,7 +131,7 @@ export default function ProfileSettings({ authFetch, BACKEND_URL, profile, onPro
         <form onSubmit={handleSaveAccount} className="space-y-4">
           <div>
             <label className={labelClass}>USERNAME</label>
-            <input
+            <input autoCapitalize="none" autoCorrect="off" spellCheck={false}
               type="text"
               value={username}
               onChange={(e) => { setUsername(e.target.value); clearAccountStatus(); }}
@@ -149,7 +149,7 @@ export default function ProfileSettings({ authFetch, BACKEND_URL, profile, onPro
 
           <div>
             <label className={labelClass}>EMAIL</label>
-            <input
+            <input autoCapitalize="none" autoCorrect="off" spellCheck={false}
               type="email"
               value={email}
               onChange={(e) => { setEmail(e.target.value); clearAccountStatus(); }}
@@ -208,7 +208,7 @@ export default function ProfileSettings({ authFetch, BACKEND_URL, profile, onPro
           {hasPassword && (
             <div>
               <label className={labelClass}>CURRENT PASSWORD</label>
-              <input
+              <input autoCapitalize="none" autoCorrect="off" spellCheck={false}
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
@@ -219,7 +219,7 @@ export default function ProfileSettings({ authFetch, BACKEND_URL, profile, onPro
           )}
           <div>
             <label className={labelClass}>NEW PASSWORD</label>
-            <input
+            <input autoCapitalize="none" autoCorrect="off" spellCheck={false}
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
@@ -231,7 +231,7 @@ export default function ProfileSettings({ authFetch, BACKEND_URL, profile, onPro
           </div>
           <div>
             <label className={labelClass}>CONFIRM NEW PASSWORD</label>
-            <input
+            <input autoCapitalize="none" autoCorrect="off" spellCheck={false}
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}

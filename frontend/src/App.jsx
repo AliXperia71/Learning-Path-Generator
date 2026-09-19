@@ -26,13 +26,15 @@ import {
   Moon,
   User,
   KeyRound,
-  Mail
+  Mail,
+  ArrowLeft
 } from 'lucide-react';
 import LoadingScreen from './components/LoadingScreen';
 import CareerReport from './components/CareerReport';
 import GroupSkills from './components/GroupSkills';
 import ProfileSettings from './components/ProfileSettings';
 import GoogleSignInButton from './components/GoogleSignInButton';
+import { IS_NATIVE_APP, GOOGLE_SIGN_IN_AVAILABLE } from './utils/platform';
 import LandingModal from './components/LandingModal';
 import Logo from './components/Logo';
 import { downloadRoadmapMarkdown, printRoadmapPdf } from './utils/roadmapExport';
@@ -49,7 +51,7 @@ const LANDING_HIDDEN_KEY = 'cf_landing_hidden';
 
 // Google sign-in is opt-in: without a client ID the button and its divider are
 // left out entirely rather than rendering something that can't work.
-const GOOGLE_ENABLED = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
+const GOOGLE_ENABLED = GOOGLE_SIGN_IN_AVAILABLE;
 
 // FastAPI sends `detail` as a string for our own HTTPExceptions but as a list of
 // objects for validation failures — flatten both into something showable.
@@ -587,7 +589,7 @@ export default function App() {
               <form onSubmit={handleForgotSubmit} className="space-y-4">
                 <div>
                   <label className={labelClass}>EMAIL</label>
-                  <input
+                  <input autoCapitalize="none" autoCorrect="off" spellCheck={false}
                     type="email"
                     value={authEmail}
                     onChange={(e) => setAuthEmail(e.target.value)}
@@ -632,7 +634,7 @@ export default function App() {
               <form onSubmit={handleResetSubmit} className="space-y-4">
                 <div>
                   <label className={labelClass}>NEW PASSWORD</label>
-                  <input
+                  <input autoCapitalize="none" autoCorrect="off" spellCheck={false}
                     type="password"
                     value={authPassword}
                     onChange={(e) => setAuthPassword(e.target.value)}
@@ -675,7 +677,7 @@ export default function App() {
                 {authMode === 'login' ? (
                   <div>
                     <label className={labelClass}>USERNAME OR EMAIL</label>
-                    <input
+                    <input autoCapitalize="none" autoCorrect="off" spellCheck={false}
                       type="text"
                       value={authIdentifier}
                       onChange={(e) => setAuthIdentifier(e.target.value)}
@@ -689,7 +691,7 @@ export default function App() {
                   <>
                     <div>
                       <label className={labelClass}>EMAIL</label>
-                      <input
+                      <input autoCapitalize="none" autoCorrect="off" spellCheck={false}
                         type="email"
                         value={authEmail}
                         onChange={(e) => setAuthEmail(e.target.value)}
@@ -700,7 +702,7 @@ export default function App() {
                     </div>
                     <div>
                       <label className={labelClass}>USERNAME</label>
-                      <input
+                      <input autoCapitalize="none" autoCorrect="off" spellCheck={false}
                         type="text"
                         value={authUsername}
                         onChange={(e) => setAuthUsername(e.target.value)}
@@ -718,7 +720,7 @@ export default function App() {
 
                 <div>
                   <label className={labelClass}>PASSWORD</label>
-                  <input
+                  <input autoCapitalize="none" autoCorrect="off" spellCheck={false}
                     type="password"
                     value={authPassword}
                     onChange={(e) => setAuthPassword(e.target.value)}
@@ -931,7 +933,7 @@ export default function App() {
             <button
               onClick={(e) => handleDeletePath(e, p.id)}
               title="Delete this path"
-              className="opacity-0 group-hover:opacity-100 text-muted hover:text-rose-600 dark:hover:text-rose-400 p-1 rounded-md transition-all cursor-pointer shrink-0"
+              className="[@media(hover:hover)]:opacity-0 group-hover:opacity-100 text-muted hover:text-rose-600 dark:hover:text-rose-400 p-2 -m-1 rounded-md transition-all cursor-pointer shrink-0"
             >
               <Trash2 size={13} />
             </button>
@@ -950,29 +952,30 @@ export default function App() {
       )}
 
       {/* Premium Apple-Style Glassmorphism Navbar */}
-      <header className="sticky top-0 z-50 bg-card/70 backdrop-blur-md border-b border-line-strong/30 px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+      <header className="sticky top-0 z-50 bg-card/70 backdrop-blur-md border-b border-line-strong/30 px-4 sm:px-6 py-3 sm:py-4">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
           {/* Logo doubles as a home button back to the prompt page (unless a request is running) */}
           <button
             onClick={() => !isBusy && setViewState('prompt')}
             title="New path / Career Boost"
-            className="flex items-center gap-2.5 cursor-pointer text-left"
+            className="flex items-center gap-2 sm:gap-2.5 cursor-pointer text-left min-w-0"
           >
             {/* The mark carries itself — no tile behind it. */}
-            <Logo theme={theme} className="h-9 w-auto shrink-0" />
+            <Logo theme={theme} className="h-8 sm:h-9 w-auto shrink-0" />
             <div>
               <h1 className="font-brand text-base font-bold tracking-tight text-ink leading-none">CourseForge</h1>
-              <p className="text-[10px] text-muted font-medium tracking-wide uppercase mt-1">AI Systems</p>
+              <p className="hidden sm:block text-[10px] text-muted font-medium tracking-wide uppercase mt-1">AI Systems</p>
             </div>
           </button>
           
           
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <button
               onClick={() => !isBusy && setViewState('groups')}
               title="Group Skills"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border ${
+              aria-label="Group Skills"
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border ${
                 viewState === 'groups'
                   ? 'bg-brand text-brand-fg border-brand'
                   : 'bg-surface text-ink-soft border-transparent hover:bg-line'
@@ -983,15 +986,17 @@ export default function App() {
             {/* Active session identity — doubles as the entry point to profile settings */}
             <button
               onClick={() => !isBusy && setViewState('profile')}
-              title="Profile settings"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border max-w-[180px] ${
+              title={profile?.username ? `Profile settings (${profile.username})` : 'Profile settings'}
+              aria-label="Profile settings"
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border max-w-[180px] ${
                 viewState === 'profile'
                   ? 'bg-brand text-brand-fg border-brand'
                   : 'bg-surface text-ink-soft border-transparent hover:bg-line'
               }`}
             >
               <User size={13} className="shrink-0" />
-              <span className="truncate">{profile?.username || 'Account'}</span>
+              {/* Icon-only on phones: the name is what pushed sign-out off-screen */}
+              <span className="hidden sm:inline truncate">{profile?.username || 'Account'}</span>
             </button>
             <button
               onClick={toggleTheme}
@@ -1072,8 +1077,10 @@ export default function App() {
       {(viewState === 'roadmap' || viewState === 'quiz') && (
         <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
 
-          {/* Left Interactive Control Panel Card */}
-          <div className="md:col-span-4 sticky top-24 space-y-5">
+          {/* Left Interactive Control Panel Card — desktop only. On phones it
+              stacked above the roadmap and, being sticky, stayed pinned while the
+              roadmap scrolled over it; there the prompt is its own screen instead. */}
+          <div className="hidden md:block md:col-span-4 md:sticky md:top-24 space-y-5">
             {parametersCard}
             {sessionsCard}
           </div>
@@ -1084,9 +1091,20 @@ export default function App() {
             {/* View Container: Beautiful Dynamic Roadmap Stream */}
             {viewState === 'roadmap' && roadmapData && (
             <div className="space-y-6 animate-fadeIn">
+              {/* Phones: the sidebar is hidden, so give an explicit route back.
+                  Your Paths lives on the prompt screen. */}
+              <button
+                onClick={() => !isBusy && setViewState('prompt')}
+                disabled={isBusy}
+                className="md:hidden flex items-center gap-1.5 text-sm font-semibold text-accent hover:text-accent-hover transition-all cursor-pointer disabled:opacity-50"
+              >
+                <ArrowLeft size={16} /> New path{savedPaths.length > 0 ? ' · Your paths' : ''}
+              </button>
               <div className="bg-slab p-6 rounded-2xl text-slab-fg shadow-xs relative overflow-hidden">
                 {/* NEW: Export controls — save the roadmap as PDF or Markdown */}
                 <div className="absolute top-5 right-5 flex gap-1.5">
+                  {/* PDF prints via window.open, which the iOS app's webview blocks */}
+                  {!IS_NATIVE_APP && (
                   <button
                     onClick={() => printRoadmapPdf(roadmapData, exportMeta)}
                     title="Download as PDF"
@@ -1094,6 +1112,7 @@ export default function App() {
                   >
                     <Download size={14} />
                   </button>
+                  )}
                   <button
                     onClick={() => downloadRoadmapMarkdown(roadmapData, exportMeta)}
                     title="Download as Markdown"

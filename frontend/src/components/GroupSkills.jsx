@@ -455,7 +455,7 @@ export default function GroupSkills({ authFetch, BACKEND_URL }) {
           <form onSubmit={handleJoinGroup} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-muted mb-2">INVITE CODE</label>
-              <input
+              <input autoCapitalize="none" autoCorrect="off" spellCheck={false}
                 type="text"
                 required
                 value={joinCode}

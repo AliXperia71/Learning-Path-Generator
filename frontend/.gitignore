@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 
 .env
+
+# Capacitor / iOS (ios/.gitignore covers Pods, build output and synced config)
+xcuserdata/
+DerivedData/

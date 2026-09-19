@@ -28,6 +28,10 @@ RESET_AUDIENCE = "pwreset"
 RESET_TTL_MINUTES = 30
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+# The iOS app signs in natively. It asks Google for a token addressed to the web
+# client above, so this is normally not needed; accepting the iOS client too
+# covers a token issued without that server client ID.
+GOOGLE_IOS_CLIENT_ID = os.getenv("GOOGLE_IOS_CLIENT_ID")
 
 # Google-only accounts have no password. The column is NOT NULL (dropping that
 # on SQLite means rebuilding the table), so "no password" is the empty string.
@@ -292,8 +296,9 @@ def google_sign_in(credential: str) -> dict:
         raise ValueError("Google sign-in isn't available — the server is missing google-auth.")
 
     try:
+        audiences = [a for a in (GOOGLE_CLIENT_ID, GOOGLE_IOS_CLIENT_ID) if a]
         info = google_id_token.verify_oauth2_token(
-            credential, google_requests.Request(), GOOGLE_CLIENT_ID
+            credential, google_requests.Request(), audiences
         )
     except Exception:
         raise ValueError("Could not verify that Google account. Please try again.")

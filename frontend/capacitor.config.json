@@ -1,0 +1,42 @@
+{
+  "appId": "ai.courseforgeapp.app",
+  "appName": "CourseForge",
+  "webDir": "dist",
+  "backgroundColor": "#0B1B2B",
+  "server": {
+    "url": "https://courseforgeapp.ai",
+    "cleartext": false,
+    "allowNavigation": [
+      "courseforgeapp.ai",
+      "accounts.google.com",
+      "*.google.com",
+      "*.googleapis.com",
+      "*.gstatic.com"
+    ]
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0B1B2B",
+    "scrollEnabled": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 500,
+      "launchAutoHide": true,
+      "backgroundColor": "#0B1B2B",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "overlaysWebView": false,
+      "style": "DARK",
+      "backgroundColor": "#0B1B2B"
+    }
+  },
+  "experimental": {
+    "ios": {
+      "spm": {
+        "swiftToolsVersion": "6.0"
+      }
+    }
+  }
+}

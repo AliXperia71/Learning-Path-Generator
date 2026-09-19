@@ -98,7 +98,13 @@
 }
 
 /* Native form controls / scrollbars match the theme */
-:root { color-scheme: light; }
+:root {
+  color-scheme: light;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+}
 .dark { color-scheme: dark; }
 
 /* Google Identity Services renders its button inside a cross-origin iframe that
@@ -114,6 +120,21 @@
 .gis-button > div {
   overflow: hidden;
   border-radius: 9999px;   /* renderButton uses shape: 'pill' */
+}
+
+/* Touch screens (phones, tablets, the iOS app shell). Scoped to coarse pointers
+   so desktop layout is untouched.
+   - 16px form text: iOS Safari/WKWebView zooms the page on focus below that.
+   - Range slider: the track is h-1 (~4px), far under Apple's 44pt minimum.
+     Vertical padding grows the hit area while background-clip keeps the thin
+     visual track.
+   - No grey tap flash, and no rubber-band overscroll exposing the page colour
+     behind the always-dark slab. */
+@media (pointer: coarse) {
+  input, textarea, select { font-size: max(16px, 1em); }
+  input[type="range"] { padding-block: 14px; background-clip: content-box; box-sizing: content-box; }
+  html { -webkit-tap-highlight-color: transparent; }
+  body { overscroll-behavior-y: none; }
 }
 
 body {
