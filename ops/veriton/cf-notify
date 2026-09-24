@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""Send a CourseForge ops alert. Used by cf-autodeploy on the Veriton.
+
+    cf-notify "<subject>" < body.txt
+
+Runs on the HOST, not in the api container, on purpose: the alert that matters
+most is "the site is down", and `docker compose exec api ...` fails in exactly
+that case. It reuses the app's own SMTP settings from backend/.env, so there is
+no second set of credentials to keep in sync, and needs only the stdlib (the box
+has no mailx/sendmail/msmtp).
+
+Settings, read from backend/.env, then overridden by ~/.cf-autodeploy/notify.env,
+then by the environment:
+  SMTP_HOST, SMTP_PORT (587 = STARTTLS, 465 = implicit TLS), SMTP_USER,
+  SMTP_PASS, SMTP_FROM   — same meaning as in services/email_service.py
+  CF_NOTIFY_TO           — recipient; defaults to SMTP_USER, then SMTP_FROM
+  CF_NOTIFY_WEBHOOK      — optional; the body is POSTed here too (works with
+                           ntfy.sh topics for phone push)
+
+Exit 0 if at least one channel delivered, 1 otherwise. When nothing is
+configured the message is printed, so it still lands in cf-autodeploy.log.
+"""
+import os
+import smtplib
+import ssl
+import sys
+import urllib.request
+from email.message import EmailMessage
+from email.utils import parseaddr
+
+REPO = os.environ.get("CF_REPO", os.path.expanduser("~/apps/course-forge"))
+
+
+def load_env(path):
+    values = {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, val = line.partition("=")
+                values[key.strip()] = val.strip().strip('"').strip("'")
+    except FileNotFoundError:
+        pass
+    return values
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        return 2
+    subject = "[CourseForge] " + sys.argv[1]
+    body = "" if sys.stdin.isatty() else sys.stdin.read()
+    # Keep mail readable: the tail of a deploy log is what explains a failure
+    lines = body.splitlines()
+    if len(lines) > 80:
+        body = "... (%d earlier lines trimmed)\n" % (len(lines) - 80) + "\n".join(lines[-80:])
+
+    cfg = load_env(os.path.join(REPO, "backend", ".env"))
+    cfg.update(load_env(os.path.expanduser("~/.cf-autodeploy/notify.env")))
+    cfg.update({k: v for k, v in os.environ.items() if k.startswith(("SMTP_", "CF_NOTIFY_"))})
+
+    delivered = False
+    host = cfg.get("SMTP_HOST")
+    # SMTP_FROM is often a display value ("CourseForge <noreply@...>") nobody
+    # reads, so the login account is the better default recipient
+    to = cfg.get("CF_NOTIFY_TO") or cfg.get("SMTP_USER") or parseaddr(cfg.get("SMTP_FROM", ""))[1]
+    if host and to:
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = cfg.get("SMTP_FROM") or cfg.get("SMTP_USER") or "noreply@courseforgeapp.ai"
+        msg["To"] = to
+        msg.set_content(body or subject)
+        try:
+            port = int(cfg.get("SMTP_PORT") or 587)
+            ctx = ssl.create_default_context()
+            if port == 465:
+                server = smtplib.SMTP_SSL(host, port, timeout=15, context=ctx)
+            else:
+                server = smtplib.SMTP(host, port, timeout=15)
+                server.starttls(context=ctx)
+            with server:
+                if cfg.get("SMTP_USER") and cfg.get("SMTP_PASS"):
+                    server.login(cfg["SMTP_USER"], cfg["SMTP_PASS"])
+                server.send_message(msg)
+            delivered = True
+        except Exception as e:
+            # Type only — an SMTP error string can echo the credentials back
+            print("cf-notify: email failed (%s)" % type(e).__name__, file=sys.stderr)
+
+    hook = cfg.get("CF_NOTIFY_WEBHOOK")
+    if hook:
+        try:
+            req = urllib.request.Request(hook, data=(body or subject).encode(), method="POST",
+                                         headers={"Title": subject, "Content-Type": "text/plain"})
+            urllib.request.urlopen(req, timeout=15).close()
+            delivered = True
+        except Exception as e:
+            print("cf-notify: webhook failed (%s)" % type(e).__name__, file=sys.stderr)
+
+    if not delivered:
+        print("cf-notify (not delivered): %s\n%s" % (subject, body))
+    return 0 if delivered else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

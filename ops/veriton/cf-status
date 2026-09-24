@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# CourseForge health check. Lives outside the repo on purpose: the production
+# checkout must stay a clean mirror or ops/deploy.sh refuses to run.
+#   cf-status
+# Tracked copy: ops/veriton/cf-status in the repo. Edit both.
+REPO=~/apps/course-forge
+cd "$REPO" || { echo "no repo at $REPO"; exit 1; }
+ok(){ printf "  \033[32m✓\033[0m %s\n" "$*"; }
+no(){ printf "  \033[31m✗\033[0m %s\n" "$*"; }
+hd(){ printf "\n\033[1m%s\033[0m\n" "$*"; }
+
+hd "Containers"
+for s in api web; do
+  st=$(docker compose ps --format "{{.Service}} {{.Status}}" | awk -v s=$s '$1==s{$1="";print}')
+  [ -n "$st" ] && ok "$s$st" || no "$s is NOT running"
+done
+st=$(docker ps --filter name=cloudflared --format "{{.Status}}")
+[ -n "$st" ] && ok "cloudflared $st" || no "cloudflared is NOT running"
+
+hd "App (loopback)"
+curl -fsS --max-time 10 http://127.0.0.1:8080/api/health/db >/dev/null 2>&1 && ok "API healthy" || no "API not responding on 127.0.0.1:8080"
+curl -fsS --max-time 10 http://127.0.0.1:8080/ >/dev/null 2>&1 && ok "frontend serving" || no "frontend not serving"
+
+hd "Tunnel"
+n=$(docker logs cloudflared 2>&1 | grep -c "Registered tunnel connection")
+[ "$n" -ge 1 ] && ok "$n edge connections registered" || no "no tunnel connections"
+
+hd "Public"
+curl -fsS --max-time 20 https://courseforgeapp.ai/api/health/db >/dev/null 2>&1 && ok "https://courseforgeapp.ai reachable" || no "public domain NOT reachable"
+c=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 http://courseforgeapp.ai/)
+[ "$c" = "301" ] && ok "http -> https redirect on" || no "http returned $c (expected 301)"
+
+hd "Data"
+docker compose exec -T api python -c "
+import sqlite3
+c=sqlite3.connect('/root/.course_forge/courseforge.db')
+q=lambda t: c.execute('select count(*) from '+t).fetchone()[0]
+print('  users: %d | paths: %d | quizzes: %d' % (q('users'),q('learning_paths'),q('quiz_attempts')))
+" 2>/dev/null || no "could not read the database"
+
+hd "Backups"
+n=$(ls -1 ~/backups/courseforge/*.db.gz 2>/dev/null | wc -l | tr -d " ")
+last=$(ls -1t ~/backups/courseforge/*.db.gz 2>/dev/null | head -1)
+[ "$n" -gt 0 ] && ok "$n snapshots, newest $(basename "${last:-none}")" || no "NO backups present"
+
+hd "Auto-deploy"
+if crontab -l 2>/dev/null | grep -q cf-autodeploy; then ok "cron armed (every 5 min)"; else no "cron NOT armed"; fi
+br=$(git rev-parse --abbrev-ref HEAD); up=$(git rev-parse --abbrev-ref '@{u}' 2>/dev/null || echo none)
+[ "$up" = "origin/production" ] && ok "tracking $up" || no "tracking $up (expected origin/production)"
+st=$(cat ~/.cf-autodeploy/status 2>/dev/null)
+case "$st" in
+  "")          echo "  - no auto-deploy has run yet" ;;
+  *" OK "*)    ok "last: $st" ;;
+  *)           no "last: $st" ;;
+esac
+[ -f ~/.cf-autodeploy/poison ] && no "holding back poisoned $(cut -c1-8 ~/.cf-autodeploy/poison) until a newer commit is pushed"
+
+hd "Host"
+echo "  $(df -h / | tail -1 | awk "{print \$4\" free (\"\$5\" used)\"}")  |  load$(uptime | sed "s/.*load average://")"
+echo

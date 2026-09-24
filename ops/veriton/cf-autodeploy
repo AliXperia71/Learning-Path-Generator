@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+#
+# Auto-deploy poller. Runs from cron every 5 minutes on the Veriton:
+#   */5 * * * * /home/alia71/bin/cf-autodeploy >> /home/alia71/cf-autodeploy.log 2>&1
+#
+#   cf-autodeploy            # deploy if the upstream branch moved
+#   cf-autodeploy --check    # say what it WOULD do; never deploys
+#
+# The live copy lives in ~/bin, OUTSIDE the repo: ops/deploy.sh refuses a dirty
+# tree and untracked files count. This file in ops/veriton/ is the tracked
+# reference copy — edit both (a mismatch is flagged in the status line).
+#
+# It wraps ops/deploy.sh rather than replacing it, and fixes three things that
+# only go wrong when nobody is watching:
+#
+#  1. Redeploy loop. On a failed health gate deploy.sh rolls back with
+#     `git reset --hard OLD`, recording nothing — so the next tick would see the
+#     same new commit and rebuild it again, forever. A failed rev is written to
+#     a poison file and skipped until a NEWER commit is pushed.
+#  2. Overlap. A build plus two 300s health waits can outlast the poll
+#     interval; flock makes a second run exit immediately.
+#  3. Ambiguous exit codes. deploy.sh exits 1 for both "rolled back cleanly" and
+#     "site is down", so this re-probes health itself to tell them apart.
+
+set -uo pipefail
+
+REPO="${CF_REPO:-$HOME/apps/course-forge}"
+STATE="${CF_STATE:-$HOME/.cf-autodeploy}"
+POISON="$STATE/poison"
+STATUS="$STATE/status"
+BIN_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+NOTIFY="$BIN_DIR/cf-notify"
+HEALTH_URL="${CF_HEALTH_URL:-http://127.0.0.1:8080/api/health/db}"
+PUBLIC_URL="${CF_PUBLIC_URL:-https://courseforgeapp.ai/api/health/db}"
+
+CHECK=0
+[[ "${1:-}" == "--check" ]] && CHECK=1
+
+mkdir -p "$STATE"
+
+# One run at a time. -n: if a deploy is in flight, this tick just leaves.
+exec 9>"${CF_LOCK:-/tmp/cf-autodeploy.lock}"
+flock -n 9 || { (( CHECK )) && echo "another run holds the lock"; exit 0; }
+
+ts() { date -Is; }
+log() { echo "[$(ts)] $*"; }
+
+drift=""
+if [[ -f "$REPO/ops/veriton/cf-autodeploy" ]] && ! cmp -s "${BASH_SOURCE[0]}" "$REPO/ops/veriton/cf-autodeploy"; then
+  drift=" [~/bin/cf-autodeploy differs from ops/veriton/ copy]"
+fi
+set_status() { echo "$(ts) $*$drift" > "$STATUS"; }
+
+notify() {  # notify "<subject>" <file-with-body>
+  if [[ -x "$NOTIFY" ]]; then "$NOTIFY" "$1" < "$2" || log "notify failed: $1"
+  else log "cf-notify missing — would have sent: $1"; fi
+}
+
+# Once per commit+reason, so a stuck state mails you once, not every 5 minutes
+notify_once() {  # notify_once <key> <subject> <file>
+  local stamp="$STATE/notified-$1"
+  [[ -f "$stamp" ]] && return 0
+  touch "$stamp"
+  notify "$2" "$3"
+}
+
+cd "$REPO" || { log "no repo at $REPO"; exit 1; }
+
+# A failed fetch is almost always a network blip; the next tick retries.
+# Deliberately silent beyond the log so a flaky connection doesn't spam mail.
+if ! git fetch --prune --quiet 2>/dev/null; then
+  log "git fetch failed — will retry next tick"
+  exit 0
+fi
+
+HEAD_REV="$(git rev-parse HEAD)"
+if ! UP_REV="$(git rev-parse '@{u}' 2>/dev/null)"; then
+  log "branch $(git rev-parse --abbrev-ref HEAD) has no upstream"
+  set_status "ERROR no upstream on $(git rev-parse --abbrev-ref HEAD)"
+  exit 1
+fi
+
+if [[ "$HEAD_REV" == "$UP_REV" ]]; then
+  (( CHECK )) && echo "up to date at ${HEAD_REV:0:8} on $(git rev-parse --abbrev-ref '@{u}')"
+  [[ -f "$STATUS" ]] || set_status "OK ${HEAD_REV:0:8} (idle)"
+  exit 0
+fi
+
+if [[ -f "$POISON" && "$(cat "$POISON")" == "$UP_REV" ]]; then
+  # Logged once a day so the log shows it's still being held back
+  stamp="$STATE/poison-logged-$(date +%F)"
+  [[ -f "$stamp" ]] || { log "holding back poisoned ${UP_REV:0:8}; push a newer commit to retry"; touch "$stamp"; }
+  (( CHECK )) && echo "${UP_REV:0:8} is poisoned (failed earlier); would NOT deploy"
+  exit 0
+fi
+
+if (( CHECK )); then
+  echo "would deploy ${HEAD_REV:0:8} -> ${UP_REV:0:8}:"
+  git --no-pager log --oneline --no-decorate "$HEAD_REV..$UP_REV"
+  exit 0
+fi
+
+log "deploying ${HEAD_REV:0:8} -> ${UP_REV:0:8}"
+out="$(mktemp)"
+trap 'rm -f "$out"' EXIT
+
+# -y MUST be $1: deploy.sh checks only the first argument, and under cron a
+# missing flag makes `read` hit EOF, which it treats as "no".
+"$REPO/ops/deploy.sh" -y 2>&1 | tee "$out"
+rc=${PIPESTATUS[0]}
+NOW_REV="$(git rev-parse HEAD)"
+
+if (( rc == 0 )) && [[ "$NOW_REV" == "$UP_REV" ]]; then
+  rm -f "$POISON"
+  set_status "OK ${UP_REV:0:8} deployed"
+  log "deployed ${UP_REV:0:8}"
+  notify "deploy OK ${UP_REV:0:8}" "$out"
+  exit 0
+fi
+
+# Did deploy.sh get as far as building? If not, it stopped in preflight (dirty
+# tree, missing .env, failed backup) — not the commit's fault, so don't poison
+# it: fix the box and the next tick retries on its own.
+if ! grep -q "Building and starting" "$out"; then
+  set_status "BLOCKED before build for ${UP_REV:0:8} (see cf-autodeploy.log)"
+  log "blocked in preflight — not poisoning ${UP_REV:0:8}"
+  notify_once "blocked-$UP_REV" "deploy BLOCKED ${UP_REV:0:8}" "$out"
+  exit 1
+fi
+
+echo "$UP_REV" > "$POISON"
+
+if curl -fsS --max-time 10 "$HEALTH_URL" 2>/dev/null | grep -q '"status":"healthy"' \
+   && curl -fsS --max-time 20 "$PUBLIC_URL" >/dev/null 2>&1; then
+  sev="rolled back"
+else
+  sev="SITE DOWN"
+fi
+set_status "FAILED ${UP_REV:0:8} — $sev, running ${NOW_REV:0:8}"
+log "FAILED ${UP_REV:0:8} — $sev; poisoned until a newer commit arrives"
+notify "$sev: ${UP_REV:0:8} failed its health gate" "$out"
+exit 1
