@@ -36,6 +36,7 @@ import ProfileSettings from './components/ProfileSettings';
 import GoogleSignInButton from './components/GoogleSignInButton';
 import { IS_NATIVE_APP, GOOGLE_SIGN_IN_AVAILABLE } from './utils/platform';
 import LandingModal from './components/LandingModal';
+import { SocialFooter } from './components/SocialLinks';
 import Logo from './components/Logo';
 import { downloadRoadmapMarkdown, printRoadmapPdf } from './utils/roadmapExport';
 
@@ -783,6 +784,8 @@ export default function App() {
             </>
           )}
         </div>
+
+        <SocialFooter className="mt-6" />
       </div>
     );
   }

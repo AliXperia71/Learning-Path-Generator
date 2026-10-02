@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { ArrowLeft, User, Mail, KeyRound, Save, Check, ShieldCheck } from 'lucide-react';
+import {
+  ArrowLeft, User, Mail, KeyRound, Save, Check, ShieldCheck, Heart, ExternalLink, MessageSquareHeart
+} from 'lucide-react';
+import { SOCIAL_LINKS, FEEDBACK_URL, externalLinkProps } from '../utils/socialLinks';
 
 const BIO_LIMIT = 500;
 
@@ -277,6 +280,40 @@ export default function ProfileSettings({ authFetch, BACKEND_URL, profile, onPro
               Not connected
             </span>
           )}
+        </div>
+      </section>
+
+      {/* ---------------- Follow us ---------------- */}
+      <section className={cardClass}>
+        <h3 className="text-sm font-semibold tracking-wide text-ink uppercase mb-4 flex items-center gap-2">
+          <Heart size={14} /> Follow us
+        </h3>
+        {/* -mx-3 so each row's hover fill reaches the card's padding instead of hugging the text */}
+        <div className="-mx-3 space-y-1">
+          {SOCIAL_LINKS.map(({ name, handle, href, Icon }) => (
+            <a
+              key={name}
+              href={href}
+              {...externalLinkProps}
+              className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-surface transition-colors group"
+            >
+              <span className="text-sm text-ink-soft font-medium inline-flex items-center gap-2">
+                <Icon size={14} className="text-muted group-hover:text-ink" /> {name}
+              </span>
+              <span className="text-xs text-muted font-medium inline-flex items-center gap-1.5">
+                {handle} <ExternalLink size={12} />
+              </span>
+            </a>
+          ))}
+        </div>
+
+        <div className="border-t border-line mt-4 pt-4 space-y-3">
+          <p className="text-xs text-muted font-medium">
+            Something broken, or a feature you want? Tell us.
+          </p>
+          <a href={FEEDBACK_URL} {...externalLinkProps} className={buttonClass}>
+            <MessageSquareHeart size={14} /> Share feedback
+          </a>
         </div>
       </section>
     </div>
