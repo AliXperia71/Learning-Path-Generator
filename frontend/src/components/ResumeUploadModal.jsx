@@ -7,6 +7,9 @@ import { pickResumeFromDrive } from '../utils/googleDrive';
 const ACCEPTED_EXTENSIONS = ['.pdf', '.docx', '.txt', '.png', '.jpg', '.jpeg', '.webp'];
 // Same cap as MAX_UPLOAD_BYTES in backend/routes/resume.py
 const MAX_BYTES = 5 * 1024 * 1024;
+// Brave Shields blocks the Picker's cross-site docs.google.com frame, and the
+// failure happens inside Google's popup where we can't catch it — so just warn
+const IS_BRAVE = Boolean(navigator.brave);
 
 function validate(file) {
   const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
@@ -167,6 +170,11 @@ export default function ResumeUploadModal({ onClose, onSelect }) {
               {driveBusy ? <LoaderCircle size={16} className="animate-spin" /> : <DriveIcon />}
               {driveBusy ? 'Connecting to Drive…' : 'Import from Google Drive'}
             </button>
+            {IS_BRAVE && (
+              <p className="mt-2 text-[11px] text-muted text-center">
+                Using Brave? If Drive doesn’t open, turn Shields off for this site.
+              </p>
+            )}
           </>
         )}
 
