@@ -15,12 +15,19 @@ COPY . .
 #                         "Sign in with Google" button simply doesn't render.
 #   VITE_GOOGLE_IOS_CLIENT_ID — the iOS OAuth client. Only the iOS app uses it
 #                         (native sign-in); unset and the app hides its button.
+#   VITE_GOOGLE_API_KEY / VITE_GOOGLE_APP_ID — Google Picker API key and the Cloud
+#                         project number. Both public. Unset and the resume
+#                         dialog's "Import from Google Drive" button doesn't render.
 ARG VITE_API_BASE_URL=""
 ARG VITE_GOOGLE_CLIENT_ID=""
 ARG VITE_GOOGLE_IOS_CLIENT_ID=""
+ARG VITE_GOOGLE_API_KEY=""
+ARG VITE_GOOGLE_APP_ID=""
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
     VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID \
-    VITE_GOOGLE_IOS_CLIENT_ID=$VITE_GOOGLE_IOS_CLIENT_ID
+    VITE_GOOGLE_IOS_CLIENT_ID=$VITE_GOOGLE_IOS_CLIENT_ID \
+    VITE_GOOGLE_API_KEY=$VITE_GOOGLE_API_KEY \
+    VITE_GOOGLE_APP_ID=$VITE_GOOGLE_APP_ID
 
 RUN npm run build
 

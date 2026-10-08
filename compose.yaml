@@ -42,6 +42,9 @@ services:
         # Public value, not a secret. Unset -> the Google button doesn't render.
         VITE_GOOGLE_CLIENT_ID: "${VITE_GOOGLE_CLIENT_ID:-}"
         VITE_GOOGLE_IOS_CLIENT_ID: "${VITE_GOOGLE_IOS_CLIENT_ID:-}"
+        # Public too. Unset -> no "Import from Google Drive" on the resume dialog.
+        VITE_GOOGLE_API_KEY: "${VITE_GOOGLE_API_KEY:-}"
+        VITE_GOOGLE_APP_ID: "${VITE_GOOGLE_APP_ID:-}"
     ports:
       # Loopback only — cloudflared connects here from the same host.
       - "127.0.0.1:8080:80"

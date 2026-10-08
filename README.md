@@ -664,7 +664,8 @@ default path inside the container — don't invent a third location.
 > **The domain is not compiled into the frontend.** Because `VITE_API_BASE_URL`
 > is empty, the app calls `/api/...` relative to whatever host served it. You can
 > add, change or move hostnames without ever rebuilding. The *only* build-time
-> value is `VITE_GOOGLE_CLIENT_ID`.
+> values are the `VITE_GOOGLE_*` ones (client IDs, and the Drive picker's
+> `VITE_GOOGLE_API_KEY` / `VITE_GOOGLE_APP_ID`).
 
 ### 4. Cloudflare Tunnel
 
@@ -995,6 +996,11 @@ so `--reload` alone won't pick it up.
 - `401 "Google sign-in isn't configured on this server."` → the backend is missing `GOOGLE_CLIENT_ID`. It must be the **same** client ID as the frontend's
 - `401 "Google sign-in isn't available — the server is missing google-auth."` → run `pip install -r requirements.txt`
 - Google console error about the origin → add `http://localhost:5173` under **Authorized JavaScript origins** (not redirect URIs)
+
+### Google Drive import (resume dialog)
+- Button doesn't appear → `VITE_GOOGLE_API_KEY` or `VITE_GOOGLE_APP_ID` isn't set in `frontend/.env` (plus `VITE_GOOGLE_CLIENT_ID`), or the dev server wasn't restarted. It's always hidden in the iOS app — the native file sheet reaches Drive through the Files app instead
+- Picker says "The API developer key is invalid" → the key's referrer restriction is missing this origin, or it isn't allowed to call the Picker API
+- File picked but download returns 404/403 → `VITE_GOOGLE_APP_ID` must be the **project number** of the same project as the OAuth client, and the Drive API must be enabled there
 
 ---
 

@@ -36,6 +36,7 @@ import ProfileSettings from './components/ProfileSettings';
 import GoogleSignInButton from './components/GoogleSignInButton';
 import { IS_NATIVE_APP, GOOGLE_SIGN_IN_AVAILABLE } from './utils/platform';
 import LandingModal from './components/LandingModal';
+import ResumeUploadModal from './components/ResumeUploadModal';
 import { SocialFooter } from './components/SocialLinks';
 import Logo from './components/Logo';
 import { downloadRoadmapMarkdown, printRoadmapPdf } from './utils/roadmapExport';
@@ -162,6 +163,7 @@ export default function App() {
 
   // NEW: Career Boost states — resume file + ATS scan report
   const [resumeFile, setResumeFile] = useState(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const [careerReport, setCareerReport] = useState(null);
 
   // NEW: Saved session states — every generated roadmap persists server-side
@@ -874,17 +876,16 @@ export default function App() {
         Upload your resume — GPT-5 runs an ATS error scan, suggests enhancements, and matches you to live LinkedIn & Indeed job searches.
       </p>
       <div className="flex flex-col sm:flex-row gap-2.5">
-        <label className={`flex-1 flex items-center justify-center gap-2 p-3 bg-surface hover:bg-line/60 border border-dashed border-line-strong rounded-xl text-xs font-medium text-ink-soft transition-all ${isBusy ? 'opacity-50' : 'cursor-pointer'}`}>
+        {/* Opens the upload dialog: drag & drop, browse, or Google Drive */}
+        <button
+          type="button"
+          onClick={() => setShowUploadModal(true)}
+          disabled={isBusy}
+          className={`flex-1 min-w-0 flex items-center justify-center gap-2 p-3 bg-surface hover:bg-line/60 border border-dashed border-line-strong rounded-xl text-xs font-medium text-ink-soft transition-all ${isBusy ? 'opacity-50' : 'cursor-pointer'}`}
+        >
           <Upload size={14} className="shrink-0" />
           <span className="truncate">{resumeFile ? resumeFile.name : 'Choose file (PDF, DOCX, TXT, or image)'}</span>
-          <input
-            type="file"
-            accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp"
-            disabled={isBusy}
-            onChange={(e) => setResumeFile(e.target.files?.[0] || null)}
-            className="hidden"
-          />
-        </label>
+        </button>
         <button
           type="button"
           onClick={handleAnalyzeResume}
@@ -952,6 +953,10 @@ export default function App() {
       {/* Opens itself right after sign-in unless the user has switched it off */}
       {showLanding && (
         <LandingModal theme={theme} onClose={closeLanding} onNeverShow={neverShowLanding} />
+      )}
+
+      {showUploadModal && (
+        <ResumeUploadModal onClose={() => setShowUploadModal(false)} onSelect={setResumeFile} />
       )}
 
       {/* Premium Apple-Style Glassmorphism Navbar */}
